@@ -1,0 +1,633 @@
+// HESYD ONE — Modèle de données (CDC §14). Chaque table métier porte organizationId.
+// SQLite réel ; types réservés pour migration PostgreSQL/pgvector (embeddingJson).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ————— Référentiel & abonnement —————
+
+model Plan {
+  id                       String   @id @default(cuid())
+  code                     String   @unique // TRIAL, STANDARD, ENTREPRISE
+  name                     String
+  priceMonthlyCents        Int      @default(0)
+  currency                 String   @default("EUR")
+  maxUsers                 Int      @default(3)
+  maxClients               Int      @default(10)
+  maxGroups                Int      @default(20)
+  monthlyDocuments         Int      @default(200)
+  monthlyCredits           Int      @default(500)
+  maxAutomations           Int      @default(3)
+  minIntervalMinutes       Int      @default(60)
+  groupCollection          Boolean  @default(false)
+  dedicatedNumber          Boolean  @default(false)
+  active                   Boolean  @default(true)
+}
+
+model Organization {
+  id                String    @id @default(cuid())
+  name              String
+  slug              String    @unique
+  country           String    @default("FR")
+  timezone          String    @default("Europe/Paris")
+  locale            String    @default("fr")
+  status            String    @default("TRIAL") // TRIAL, ACTIF, GRACE, IMPAYE, SUSPENDU, ESSAI_EXPIRE, RESILIE, PURGE
+  trialEndsAt       DateTime?
+  autonomyLevel     String    @default("A2") // A0 (tout proposer), A1 (exécuter après approbation), A2 (autonome sauf risque élevé)
+  reminderJ7At      DateTime? // rappel de fin d'essai J-7 (un seul, horodaté)
+  reminderJ3At      DateTime? // rappel J-3
+  reminderJ1At      DateTime? // rappel J-1
+  purgeScheduledAt  DateTime? // purge programmée (essai expiré > 30 j ou résiliation)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  memberships       Membership[]
+  clients           Client[]
+  waGroups          WaGroup[]
+  files             File[]
+  subscription      Subscription?
+}
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  name            String
+  passwordHash    String?   // null pour les comptes créés via OAuth (Google)
+  oauthProvider   String?   // GOOGLE — fournisseur d'identité externe
+  oauthSubject    String?   // identifiant stable chez le fournisseur (sub OIDC)
+  avatarUrl       String?   // photo de profil (Google), sans stockage local
+  status          String    @default("ACTIF") // ACTIF, DESACTIVE
+  locale          String    @default("fr")
+  emailVerifiedAt DateTime? // vérification e-mail réelle (token à usage unique)
+  mfaSecret       String?   // secret TOTP chiffré AES-256-GCM au repos — null si MFA désactivée
+  mfaEnabled      Boolean   @default(false)
+  mfaLastUsedStep Int?      // pas de temps TOTP déjà accepté (garde anti-rejeu RFC 6238)
+  lastLoginAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  memberships  Membership[]
+  sessions     Session[]
+  authTokens   AuthToken[]
+
+  @@unique([oauthProvider, oauthSubject])
+}
+
+// Tokens à usage unique (vérification e-mail, réinitialisation, étape MFA)
+model AuthToken {
+  id        String    @id @default(cuid())
+  userId    String
+  kind      String    // VERIFICATION_EMAIL, REINITIALISATION_MDP, CONNEXION_MFA
+  tokenHash String    @unique // seul le sha256 est stocké, jamais le token
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Membership {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  role           String   @default("EMPLOYE") // PROPRIETAIRE, ADMINISTRATEUR, EMPLOYE, LECTEUR
+  createdAt      DateTime @default(now())
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Invite {
+  id          String   @id @default(cuid())
+  organizationId String
+  email       String
+  role        String   @default("EMPLOYE")
+  token       String   @unique
+  status      String   @default("EN_ATTENTE") // EN_ATTENTE, ACCEPTEE, EXPIREE
+  expiresAt   DateTime
+  createdById String
+  createdAt   DateTime @default(now())
+}
+
+// Fenêtres de limitation de débit persistées (multi-instances) — clés typées : REGISTER:{emailHash}, FORGOT:{ipHash}, VERIFY:{emailHash}, WEBHOOK:{provider}
+model RateLimitWindow {
+  key         String   @id
+  count       Int      @default(0)
+  windowStart DateTime @default(now())
+}
+
+model Subscription {
+  id                  String   @id @default(cuid())
+  organizationId      String   @unique
+  planCode            String   @default("TRIAL")
+  status              String   @default("ESSAI") // ESSAI, ACTIF, GRACE, IMPAYE, SUSPENDU, ESSAI_EXPIRE, RESILIE
+  currentPeriodStart  DateTime?
+  currentPeriodEnd    DateTime?
+  cancelAtPeriodEnd   Boolean  @default(false)
+  cancelRequestedAt   DateTime? // demande de résiliation par le propriétaire (traitée par l'opérateur plateforme)
+  cancelReason        String?
+  providerCustomerId  String?
+  providerSubscriptionId String?
+  updatedAt           DateTime @updatedAt
+  organization        Organization @relation(fields: [organizationId], references: [id])
+}
+
+model SubscriptionEvent {
+  id                String   @id @default(cuid())
+  organizationId    String?
+  providerEventKey  String   @unique
+  type              String
+  payloadJson       String
+  processed         Boolean  @default(false)
+  receivedAt        DateTime @default(now())
+}
+
+model CreditLedger {
+  id           String   @id @default(cuid())
+  organizationId String
+  delta        Int
+  reason       String   // DREDIT_ACCORDE, CONSO_AGENT, CONSO_OCR, ACHAT, RENOUVELLEMENT, EXPIRATION
+  detail       String?
+  balanceAfter Int
+  expiresAt    DateTime?
+  createdAt    DateTime @default(now())
+}
+
+model UsageMetering {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String?
+  nature         String   // DOCUMENT_TRAITE, QUESTION_AGENT, LIVRABLE, TRANSCRIPTION, OCR
+  quantity       Int      @default(1)
+  creditsUsed    Int      @default(0)
+  createdAt      DateTime @default(now())
+}
+
+// ————— Référentiel clients & groupes —————
+
+model Client {
+  id             String    @id @default(cuid())
+  organizationId String
+  code           String
+  name           String
+  contact        String?
+  status         String    @default("ACTIF") // ACTIF, SUSPENDU, ARCHIVE
+  archivedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  groups         WaGroup[]
+  files          File[]
+
+  @@unique([organizationId, code])
+}
+
+model WaGroup {
+  id                String    @id @default(cuid())
+  organizationId    String
+  clientId          String
+  code              String
+  name              String
+  sourceType        String    @default("DEPOT_WEB") // WHATSAPP_DIRECT, WHATSAPP_GROUPE, DEPOT_WEB, DOSSIER_SURVEILLE
+  whatsappGroupId   String?   @unique
+  collectionStatus  String    @default("A_CONFIGURER") // A_CONFIGURER, EN_VERIFICATION, ACTIF, SUSPENDU, DECONNECTE
+  status            String    @default("ACTIF") // ACTIF, SUSPENDU, ARCHIVE
+  lastEventAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  organization      Organization @relation(fields: [organizationId], references: [id])
+  client            Client       @relation(fields: [clientId], references: [id])
+  files             File[]
+}
+
+// ————— Collecte : événements, réceptions —————
+
+model WebhookEvent {
+  id                String   @id @default(cuid())
+  organizationId    String?
+  provider          String   // WHATSAPP_CLOUD, POLAR, N8N
+  providerEventKey  String   @unique
+  eventType         String?
+  signatureValid    Boolean  @default(false)
+  processingStatus  String   @default("RECUE") // RECUE, TRAITEE, ERREUR, REJETEE
+  payloadJson       String
+  senderId          String?  // expéditeur WhatsApp brut (limitation serveur des tentatives d'appairage)
+  receivedAt        DateTime @default(now())
+}
+
+model FileReception {
+  id                String   @id @default(cuid())
+  organizationId    String
+  fileId            String?
+  webhookEventId    String?
+  clientId          String?
+  groupId           String?
+  externalGroupId   String?
+  whatsappMessageId String?
+  mediaId           String?
+  senderId          String?
+  messageTimestamp  DateTime?
+  receivedAt        DateTime @default(now())
+  caption           String?
+  rawPath           String?
+  source            String   // WHATSAPP, DEPOT_WEB, IMPORT_MANUEL, API
+  status            String   @default("RECUE") // RECUE, EN_TRAITEMENT, TRAITEE, ERREUR_REPRENABLE, ERREUR_DEFINITIVE, REJETEE_JUSTIFIEE
+  createdBy         String?
+}
+
+// ————— Fichiers documentaires & chaîne de garde —————
+
+model File {
+  id                     String    @id @default(cuid())
+  organizationId         String
+  clientId               String?
+  groupId                String?
+  originalFilename       String
+  storedFilename         String?
+  archivedPath           String?
+  mimeType               String
+  extension              String
+  category               String    @default("NON_CLASSES")
+  sizeBytes              Int       @default(0)
+  sha256                 String
+  driveFileId            String?
+  status                 String    @default("EN_VALIDATION") // EN_VALIDATION, PRET_A_ARCHIVER, EN_ARCHIVAGE, ARCHIVE, A_VERIFIER, INACCESSIBLE_DANS_DRIVE, REJETE_JUSTIFIE
+  indexStatus            String    @default("EN_ATTENTE") // EN_ATTENTE, INDEXE, INDEXATION_ECHEC
+  detectedType           String?
+  detectedTypeConfidence Float?    // 0..1
+  source                 String
+  summary                String?
+  receivedAt             DateTime?
+  archivedAt             DateTime?
+  indexedAt              DateTime?
+  confirmedByProof       String?   // preuve technique réelle (fs stat / réponse API Drive)
+  receptionCount         Int       @default(1)
+  createdById            String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  organization           Organization @relation(fields: [organizationId], references: [id])
+  client                 Client?      @relation(fields: [clientId], references: [id])
+  group                  WaGroup?     @relation(fields: [groupId], references: [id])
+  chunks                 DocumentChunk[]
+  extractions            Extraction[]
+
+  @@unique([organizationId, groupId, sha256])
+}
+
+model DocumentChunk {
+  id             String   @id @default(cuid())
+  organizationId String
+  fileId         String
+  page           Int      @default(1)
+  text           String
+  searchTerms    String   @default("") // mots-clés extraits par GLM (couche sémantique légère réelle)
+  charCount      Int      @default(0)
+  embeddingJson  String?  // réservé pgvector
+  createdAt      DateTime @default(now())
+  file           File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+}
+
+model Extraction {
+  id          String   @id @default(cuid())
+  organizationId String
+  fileId      String
+  field       String   // date, montant, reference, nom, echeance, adresse...
+  value       String
+  confidence  Float    @default(0.5)
+  sourcePage  Int?
+  needsReview Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  file        File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+}
+
+model ProcessingJob {
+  id               String    @id @default(cuid())
+  organizationId   String
+  receptionId      String?
+  fileId           String?
+  jobType          String    // PARSE, CLASSIFY, ARCHIVE, INDEX, TRANSCRIBE, MEDIA_DOWNLOAD
+  status           String    @default("EN_ATTENTE") // EN_ATTENTE, EN_COURS, RETRY_PROGRAMME, REUSSI, BLOQUE, ECHEC_DEFINITIF
+  attemptCount     Int       @default(0)
+  maxAttempts      Int       @default(3)
+  nextRetryAt      DateTime?
+  lockedAt         DateTime?
+  lockedBy         String?
+  lastErrorCode    String?
+  lastErrorMessage String?
+  startedAt        DateTime?
+  finishedAt       DateTime?
+  createdAt        DateTime  @default(now())
+}
+
+model ProcessingLog {
+  id          String   @id @default(cuid())
+  organizationId String
+  jobId       String?
+  fileId      String?
+  receptionId String?
+  step        String
+  result      String
+  details     String?
+  createdAt   DateTime @default(now())
+}
+
+// ————— Agent documentaire —————
+
+model Conversation {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String?
+  channel        String   @default("WEB")
+  status         String   @default("ACTIVE")
+  title          String?
+  createdAt      DateTime @default(now())
+  messages       Message[]
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  organizationId String
+  conversationId String
+  role           String   // user, assistant, tool, system
+  content        String
+  sourcesJson    String?  // [{fileId, titre, page, extrait, chemin}]
+  taskId         String?
+  audioBase64Meta String?
+  createdAt      DateTime @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}
+
+model AgentTask {
+  id             String   @id @default(cuid())
+  organizationId String
+  conversationId String?
+  userId         String
+  objective      String
+  status         String   @default("EN_COURS") // EN_COURS, REUSSIE, PARTIELLEMENT_REUSSIE, ECHEC, EN_ATTENTE_UTILISATEUR, ARRETEE
+  criteria       String?  // critères d'achèvement formulés au démarrage
+  stepsJson      String   @default("[]")   // [{no, label, statut, preuve, at}]
+  toolCallsJson  String   @default("[]")   // [{tool, params, resultSummary, ms, at}]
+  sourcesJson    String   @default("[]")
+  tokensIn       Int      @default(0)
+  tokensOut      Int      @default(0)
+  modelVersion   String   @default("glm")
+  promptVersion  String   @default("v1")
+  createdAt      DateTime @default(now())
+  finishedAt     DateTime?
+}
+
+model Approval {
+  id            String    @id @default(cuid())
+  organizationId String
+  taskId        String?
+  requestedById String
+  actionType    String    // ENVOI_WHATSAPP, DEPOT_DRIVE, ARCHIVAGE, AUTRE
+  riskLevel     String    // FAIBLE, MOYEN, ELEVE, CRITIQUE
+  autonomyLevel String    @default("A2")
+  previewJson   String    // aperçu exact : destinataire, contenu, document
+  status        String    @default("EN_ATTENTE") // EN_ATTENTE, APPROUVEE, REFUSEE, EXPIREE, ANNULEE
+  decidedById   String?
+  decidedAt     DateTime?
+  expiresAt     DateTime
+  createdAt     DateTime  @default(now())
+}
+
+model Deliverable {
+  id            String   @id @default(cuid())
+  organizationId String
+  taskId        String?
+  title         String
+  type          String   // PDF, XLSX, DOCX
+  version       Int      @default(1)
+  status        String   @default("PRET") // PRET, LIVRE, REMPLACE
+  sourcesJson   String   @default("[]")
+  filePath      String
+  sizeBytes     Int      @default(0)
+  qualityCheck  String?  // contrôle avant remise réel : "ouvre, sections, chiffres"
+  createdById   String?
+  createdAt     DateTime @default(now())
+
+  @@unique([organizationId, title, version])
+}
+
+// ————— Automatisations —————
+
+model Automation {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  template       String   @default("PERSONNALISEE") // RAPPORT_HEBDO, RAPPEL_MANQUANTS, RAPPORT_MENSUEL, PERSONNALISEE
+  cronExpr       String   @default("0 9 * * 1") // minute heure jour mois jourSemaine
+  configJson     String   @default("{}") // prompt structuré validé côté serveur
+  channel        String   @default("IN_APP")
+  status         String   @default("ACTIVE") // ACTIVE, PAUSE
+  consecutiveFailures Int @default(0) // 3 échecs consécutifs = pause automatique + alerte
+  createdById    String
+  createdAt      DateTime @default(now())
+  runs           AutomationRun[]
+}
+
+model AutomationRun {
+  id             String   @id @default(cuid())
+  organizationId String
+  automationId   String
+  slotKey        String   @unique // automationId + créneau : idempotence réelle
+  status         String   // REUSSI, PARTIEL, ECHEC, BLOQUE
+  report         String   // compte rendu honnête : fait / bloquant / options
+  detailsJson    String   @default("{}")
+  startedAt      DateTime @default(now())
+  finishedAt     DateTime?
+  automation     Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+}
+
+// ————— Notifications, audit, imports, intégrations —————
+
+model Notification {
+  id               String    @id @default(cuid())
+  organizationId   String
+  userId           String?
+  type             String    // QUOTA_80, QUOTA_100, ERREUR_ARCHIVAGE, APPROBATION, AUTOMATISATION, SYSTEME
+  title            String
+  message          String
+  relatedEntityType String?
+  relatedEntityId  String?
+  readAt           DateTime?
+  createdAt        DateTime  @default(now())
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String?
+  userId         String?
+  action         String
+  entityType     String
+  entityId       String?
+  beforeJson     String?
+  afterJson      String?
+  createdAt      DateTime @default(now())
+}
+
+model ImportBatch {
+  id             String   @id @default(cuid())
+  organizationId String
+  kind           String   @default("CLIENTS_GROUPES")
+  fileName       String
+  requestedById  String
+  status         String   @default("TERMINE")
+  totalRows      Int      @default(0)
+  okRows         Int      @default(0)
+  rejectedRows   Int      @default(0)
+  createdAt      DateTime @default(now())
+  rows           ImportRow[]
+}
+
+model ImportRow {
+  id       String  @id @default(cuid())
+  batchId  String
+  lineNo   Int
+  valuesJson String
+  result   String  // CREE, MAJ, REJETE
+  reason   String?
+  batch    ImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+}
+
+model IntegrationConnection {
+  id             String    @id @default(cuid())
+  organizationId String
+  connector      String    // STORAGE_LOCAL, GOOGLE_DRIVE, WHATSAPP_CLOUD, POLAR, N8N, RESEND, GOOGLE_DOCUMENT_AI, AZURE_AI_FOUNDRY
+  status         String    @default("NON_CONFIGURE") // NON_CONFIGURE, EN_ATTENTE_AUTH, CONNECTE, ERREUR, DECONNECTE
+  environment    String    @default("PRODUCTION")
+  configJson     String    @default("{}") // sans jamais de secret
+  lastCheckedAt  DateTime?
+  lastError      String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([organizationId, connector])
+}
+
+model OnboardingProgress {
+  id             String    @id @default(cuid())
+  organizationId String    @unique
+  clientCreated  Boolean   @default(false)
+  groupCreated   Boolean   @default(false)
+  storageConnected Boolean @default(false)
+  teamInvited    Boolean   @default(false)
+  firstDocArchived Boolean @default(false)
+  clientAt       DateTime?
+  groupAt        DateTime?
+  storageAt      DateTime?
+  teamAt         DateTime?
+  docAt          DateTime?
+}
+
+model MemoryItem {
+  id             String   @id @default(cuid())
+  organizationId String
+  scope          String   @default("ORGANISATION")
+  content        String
+  source         String   @default("AGENT") // AGENT, UTILISATEUR
+  status         String   @default("ACTIF")
+  createdAt      DateTime @default(now())
+}
+
+// ————— Appairage WhatsApp (CDC §4.8, §14.1) —————
+
+model WhatsappPairing {
+  id             String    @id @default(cuid())
+  organizationId String
+  userId         String
+  code           String    // code à usage unique envoyé par l'utilisateur depuis son numéro
+  phone          String?   // renseigné à l'appairage réel (premier message contenant le code)
+  status         String    @default("EN_ATTENTE") // EN_ATTENTE, ACTIF, REVOQUE, EXPIRE
+  expiresAt      DateTime  // 15 minutes (CDC §4.8)
+  pairedAt       DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@unique([organizationId, code])
+  @@index([phone, status])
+}
+
+// ————— Opérations financières (CDC §3.4 : Organisation → Client → Groupe → Événement → Opération) —————
+// Une information publiée dans un groupe ou lue dans un document n'est JAMAIS un encaissement confirmé :
+// seule la validation humaine (ADMIN+) pose VALIDE, avec piste d'audit conservée.
+model FinancialOperation {
+  id                  String    @id @default(cuid())
+  organizationId      String
+  clientId            String?
+  groupId             String?
+  sourceType          String    // WHATSAPP, DOCUMENT, MANUEL, AGENT
+  sourceReceptionId   String?   // FileReception source (traçabilité message/événement)
+  sourceFileId        String?   // File source si extrait d'un document archivé
+  sourceWebhookEventId String?  // WebhookEvent source
+  sourceKey           String    // clé d'unicité → idempotence stricte (jamais deux opérations du même événement)
+  label               String
+  amountCents         Int?
+  currency            String    @default("EUR")
+  operationDate       DateTime?
+  status              String    @default("EXTRAITE") // EXTRAITE, A_VERIFIER, VALIDE, REJETEE
+  confidence          Float     @default(0.5)
+  needsReview         Boolean   @default(false)
+  justificationFileId String?   // pièce justificative archivée (File)
+  validatedById       String?
+  validatedAt         DateTime?
+  rejectedById        String?
+  rejectionReason     String?
+  historyJson         String    @default("[]") // [{at, byId, action, from, to, note}] — correction sans effacement
+  createdById         String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([organizationId, sourceKey])
+  @@index([organizationId, status])
+  @@index([organizationId, clientId])
+}
+
+// ————— Factures et attestations (CDC §9) —————
+
+model Invoice {
+  id             String   @id @default(cuid())
+  organizationId String
+  number         String   // ex. ATT-2026-0001 (attestation) ou FAC-2026-0001
+  kind           String   // ATTESTATION, ABONNEMENT, CREDITS
+  label          String
+  periodStart    DateTime?
+  periodEnd      DateTime?
+  amountCents    Int      @default(0)
+  currency       String   @default("EUR")
+  status         String   @default("EMISE") // EMISE, PAYEE, ANNULEE
+  filePath       String?
+  sizeBytes      Int      @default(0)
+  issuedAt       DateTime @default(now())
+
+  @@unique([organizationId, number])
+}
+
+// ————— Limitation des tentatives de connexion (persistée, multi-instances) —————
+
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  emailHash String   // sha256(email|ip) — aucune donnée personnelle en clair
+  success   Boolean
+  createdAt DateTime @default(now())
+
+  @@index([emailHash, createdAt])
+}

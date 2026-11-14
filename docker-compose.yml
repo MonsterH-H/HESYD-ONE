@@ -1,0 +1,101 @@
+# ---------------------------------------------------------------------------
+# HESYD ONE — Stack de production VPS
+# Hypothèse d'hébergement retenue : Docker Compose + Nginx + HTTPS
+# (A_CONFIRMER.md A7 — VPS 4 vCPU / 8 Go).
+#
+# MIGRATION SQLite → POSTGRESQL (décision D1) :
+#   La sandbox de développement utilise SQLite (db/custom.db). En production,
+#   la base est PostgreSQL 16 + pgvector et les tables sont créées par les
+#   migrations Prisma, exécutées via :
+#       npx prisma migrate deploy
+#   (image « migrator » du Dockerfile — procédure complète dans
+#   docs/DEPLOIEMENT.md, section Migrations).
+#
+# Les secrets proviennent TOUJOURS du fichier .env à la racine (jamais en
+# dur ici). Compose lit .env automatiquement pour l'interpolation.
+# ---------------------------------------------------------------------------
+
+name: hesyd
+
+services:
+  # ————— Base de données : PostgreSQL 16 + pgvector —————
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-hesyd}
+      POSTGRES_USER: ${POSTGRES_USER:-hesyd}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD requis — définir la valeur dans .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      # Publishé sur la boucle locale uniquement : migrations, sauvegardes
+      # et administration depuis l'hôte. Jamais exposé à Internet
+      # (nginx est le seul point d'entrée public).
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hesyd} -d ${POSTGRES_DB:-hesyd}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ————— Application Next.js (sortie standalone) —————
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # Cible implicite : dernier étage du Dockerfile (« runner »).
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      # Toutes les variables applicatives (liste exacte dans .env.example) :
+      # APP_URL, PUBLIC_BASE_URL, GOOGLE_*, WHATSAPP_*, POLAR_*, N8N_*,
+      # DRIVE_ENCRYPTION_KEY, POSTGRES_*…
+      - .env
+    environment:
+      NODE_ENV: production
+      # Écrase le DATABASE_URL de .env (file:./db/custom.db en sandbox) par
+      # l'URL PostgreSQL de production — décision D1. La section
+      # « environment » prime sur « env_file ».
+      DATABASE_URL: postgresql://${POSTGRES_USER:-hesyd}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD requis}@db:5432/${POSTGRES_DB:-hesyd}?schema=public
+    expose:
+      # Interne au réseau Compose uniquement ; nginx est le reverse proxy
+      # unique exposé au public (80/443).
+      - "3000"
+    volumes:
+      # Archives documentaires réelles (storage/archives + storage/received)
+      # sur l'hôte : sauvegardées par scripts/backup.sh, jamais dans l'image.
+      - ./storage:/app/storage
+    healthcheck:
+      # GET /api/health répond 200 {"status":"operational","scheduler":"actif"}
+      # et amorce le scheduler in-process (src/app/api/health/route.ts).
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+  # ————— Reverse proxy Nginx (terminaison TLS) —————
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Conf montée en lecture seule (remplacer server_name par le domaine).
+      - ./nginx/hesyd.conf:/etc/nginx/conf.d/default.conf:ro
+      # Certificats (placeholders) : générés par certbot sur l'hôte dans
+      # ./certs/ — procédure dans docs/DEPLOIEMENT.md.
+      - ./certs:/etc/nginx/certs:ro
+      # Racine web pour les renouvellements certbot (challenge ACME).
+      - ./certbot/www:/var/www/certbot:ro
+
+volumes:
+  pgdata:

@@ -1,0 +1,126 @@
+{
+  "name": "HESYD ONE — Automatisations (tick signé)",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/5 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "3f1c9a20-7b4e-4d61-9a3f-5c2d81e64a01",
+      "name": "Déclenchement planifié",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-460, 0]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Corps EXACT envoyé à HESYD — la signature HMAC porte sur la chaîne\n// « <timestamp>.<corps> » (contrat : src/lib/connectors/n8n.ts, CDC §13.4).\n// Aucun secret ici : le secret partagé est lu par le nœud Crypto via $env.\nconst timestamp = Date.now().toString();\nconst correlationId = 'n8n-auto-' + timestamp + '-' + Math.random().toString(36).slice(2, 10);\nconst payload = { declencheur: 'n8n', workflow: 'hesyd-automatisations' };\nconst body = JSON.stringify({ payloadVersion: 'v1', correlationId: correlationId, payload: payload });\nreturn [{ json: { timestamp: timestamp, correlationId: correlationId, body: body, stringToSign: timestamp + '.' + body } }];"
+      },
+      "id": "5a2d8b31-8c5f-4e72-8b40-6d3e92f75b12",
+      "name": "Corps signé",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-240, 0]
+    },
+    {
+      "parameters": {
+        "action": "hmac",
+        "type": "SHA256",
+        "secret": "={{ $env.N8N_SHARED_SECRET }}",
+        "value": "={{ $json.stringToSign }}",
+        "encoding": "hex"
+      },
+      "id": "7c3e9c42-9d60-4f83-9c51-7e4fa3086c23",
+      "name": "Signature HMAC",
+      "type": "n8n-nodes-base.crypto",
+      "typeVersion": 1,
+      "position": [-20, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.HESYD_BASE_URL }}/api/scheduler/tick",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-HESYD-Timestamp",
+              "value": "={{ $('Corps signé').first().json.timestamp }}"
+            },
+            {
+              "name": "X-HESYD-Signature",
+              "value": "={{ $json.data }}"
+            },
+            {
+              "name": "X-HESYD-Correlation",
+              "value": "={{ $('Corps signé').first().json.correlationId }}"
+            },
+            {
+              "name": "X-HESYD-Payload-Version",
+              "value": "v1"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $('Corps signé').first().json.body }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "9d4fad53-1e71-4a94-8d62-8f50b4197d34",
+      "name": "Appel HESYD — tick signé",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [200, 0]
+    }
+  ],
+  "connections": {
+    "Déclenchement planifié": {
+      "main": [
+        [
+          {
+            "node": "Corps signé",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Corps signé": {
+      "main": [
+        [
+          {
+            "node": "Signature HMAC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Signature HMAC": {
+      "main": [
+        [
+          {
+            "node": "Appel HESYD — tick signé",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

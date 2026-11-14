@@ -1,0 +1,283 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans-text);
+  --font-display: var(--font-sans-display);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-cachet: var(--cachet);
+  --color-cachet-fond: var(--cachet-fond);
+  --color-ruban: var(--ruban);
+  --color-ruban-fond: var(--ruban-fond);
+  --color-carton: var(--carton);
+  --color-carton-fond: var(--carton-fond);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --radius: 0.375rem;
+
+  /* — HESYD ONE · thème clair « papier » — */
+  --papier: oklch(0.968 0.008 85);
+  --papier-leve: oklch(0.985 0.006 85);
+  --papier-creuse: oklch(0.938 0.011 82);
+  --encre: oklch(0.245 0.018 65);
+  --encre-2: oklch(0.46 0.016 65);
+  --encre-3: oklch(0.62 0.014 70);
+  --cachet: oklch(0.545 0.175 33);
+  --cachet-fond: oklch(0.94 0.045 33);
+  --ruban: oklch(0.51 0.065 120);
+  --ruban-fond: oklch(0.945 0.030 120);
+  --carton: oklch(0.55 0.055 75);
+  --carton-fond: oklch(0.955 0.025 75);
+  --erreur: oklch(0.50 0.170 25);
+  --erreur-fond: oklch(0.955 0.03 25);
+  --bordure: oklch(0.245 0.018 65 / 0.14);
+  --bordure-forte: oklch(0.245 0.018 65 / 0.26);
+
+  /* shadcn mapping */
+  --background: var(--papier);
+  --foreground: var(--encre);
+  --card: var(--papier-leve);
+  --card-foreground: var(--encre);
+  --popover: var(--papier-leve);
+  --popover-foreground: var(--encre);
+  --primary: var(--cachet);
+  --primary-foreground: oklch(0.985 0.006 85);
+  --secondary: var(--papier-creuse);
+  --secondary-foreground: var(--encre);
+  --muted: var(--papier-creuse);
+  --muted-foreground: var(--encre-2);
+  --accent: var(--cachet-fond);
+  --accent-foreground: var(--encre);
+  --destructive: var(--erreur);
+  --border: var(--bordure);
+  --input: var(--bordure);
+  --ring: var(--cachet);
+  --chart-1: var(--cachet);
+  --chart-2: var(--ruban);
+  --chart-3: var(--carton);
+  --chart-4: oklch(0.545 0.175 33 / 0.5);
+  --chart-5: oklch(0.51 0.065 120 / 0.5);
+  --sidebar: var(--papier);
+  --sidebar-foreground: var(--encre);
+  --sidebar-primary: var(--cachet);
+  --sidebar-primary-foreground: oklch(0.985 0.006 85);
+  --sidebar-accent: var(--papier-leve);
+  --sidebar-accent-foreground: var(--encre);
+  --sidebar-border: var(--bordure);
+  --sidebar-ring: var(--cachet);
+
+  --espace-1: 4px;
+  --espace-2: 8px;
+  --espace-3: 12px;
+  --espace-4: 16px;
+  --espace-5: 24px;
+  --espace-6: 32px;
+  --espace-7: 48px;
+  --espace-8: 64px;
+}
+
+.dark {
+  /* — HESYD ONE · thème sombre « encre » (pensé, non inversé) — */
+  --papier: oklch(0.185 0.012 75);
+  --papier-leve: oklch(0.225 0.012 75);
+  --papier-creuse: oklch(0.155 0.010 75);
+  --encre: oklch(0.905 0.012 85);
+  --encre-2: oklch(0.640 0.014 80);
+  --encre-3: oklch(0.480 0.012 75);
+  --cachet: oklch(0.635 0.170 33);
+  --cachet-fond: oklch(0.30 0.060 33);
+  --ruban: oklch(0.66 0.080 120);
+  --ruban-fond: oklch(0.27 0.035 120);
+  --carton: oklch(0.68 0.060 75);
+  --carton-fond: oklch(0.26 0.030 75);
+  --erreur: oklch(0.66 0.160 25);
+  --erreur-fond: oklch(0.26 0.050 25);
+  --bordure: oklch(0.905 0.012 85 / 0.13);
+  --bordure-forte: oklch(0.905 0.012 85 / 0.24);
+
+  --background: var(--papier);
+  --foreground: var(--encre);
+  --card: var(--papier-leve);
+  --card-foreground: var(--encre);
+  --popover: var(--papier-leve);
+  --popover-foreground: var(--encre);
+  --primary: var(--cachet);
+  --primary-foreground: oklch(0.14 0.01 75);
+  --secondary: var(--papier-leve);
+  --secondary-foreground: var(--encre);
+  --muted: var(--papier-leve);
+  --muted-foreground: var(--encre-2);
+  --accent: var(--cachet-fond);
+  --accent-foreground: var(--encre);
+  --destructive: var(--erreur);
+  --border: var(--bordure);
+  --input: var(--bordure);
+  --ring: var(--cachet);
+  --chart-1: var(--cachet);
+  --chart-2: var(--ruban);
+  --chart-3: var(--carton);
+  --chart-4: oklch(0.635 0.170 33 / 0.5);
+  --chart-5: oklch(0.66 0.080 120 / 0.5);
+  --sidebar: var(--papier);
+  --sidebar-foreground: var(--encre);
+  --sidebar-primary: var(--cachet);
+  --sidebar-primary-foreground: oklch(0.14 0.01 75);
+  --sidebar-accent: var(--papier-leve);
+  --sidebar-accent-foreground: var(--encre);
+  --sidebar-border: var(--bordure);
+  --sidebar-ring: var(--cachet);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    font-size: 16px;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans-text), ui-sans-serif, sans-serif;
+    font-feature-settings: "tnum" 1, "ss01" 0;
+  }
+  h1, h2, h3, h4 {
+    font-family: var(--font-sans-display), serif;
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  :focus-visible {
+    outline: 2px solid var(--cachet);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: var(--cachet-fond);
+    color: var(--encre);
+  }
+}
+
+/* — Registres HESYD ONE — */
+.font-display {
+  font-family: var(--font-sans-display), serif;
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+.registre {
+  font-variant-numeric: tabular-nums;
+}
+.registre-row {
+  border-bottom: 1px solid var(--bordure);
+  transition: background-color 120ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+.registre-row:hover {
+  background-color: var(--papier-leve);
+}
+
+.meta-points > span + span::before {
+  content: "·";
+  margin: 0 6px;
+  color: var(--encre-3);
+}
+
+/* — Cachet d'archivage (signature) — */
+@keyframes apposition-cachet {
+  0% {
+    transform: scale(1.6) rotate(-8deg);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(0.96) rotate(-3deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(-4deg);
+    opacity: 1;
+  }
+}
+.cachet-anime {
+  animation: apposition-cachet 480ms cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cachet-anime {
+    animation: none;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+/* — Chaîne de garde — */
+.chaine-garde-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+/* — Scrollbar raffinée — */
+.scroll-fin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--bordure-forte) transparent;
+}
+.scroll-fin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scroll-fin::-webkit-scrollbar-thumb {
+  background: var(--bordure-forte);
+  border-radius: 4px;
+}
+.scroll-fin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* — Bordereau — */
+.bordereau-num {
+  font-family: var(--font-sans-display), serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}

@@ -1,0 +1,240 @@
+{
+  "name": "HESYD ONE — Collecte WhatsApp (transfert signé)",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "hesyd-whatsapp",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "b0e4f2a1-3c5d-4b6a-8f71-90a1b2c3d4e5",
+      "name": "Webhook GET — vérification Meta",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-660, -240],
+      "webhookId": "c1f5a3b2-4d6e-4c7b-9a82-01b3c4d5e6f7"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "hesyd-whatsapp",
+        "responseMode": "onReceived",
+        "responseData": "{\"received\":true}",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "d2a6b4c3-5e7f-4d8c-ab93-12c4d5e6f708",
+      "name": "Webhook POST — événements Meta",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-660, 80],
+      "webhookId": "e3b7c5d4-6f8a-4e9d-bca4-23d5e6f70819"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-mode",
+              "leftValue": "={{ $json.query['hub.mode'] }}",
+              "rightValue": "subscribe",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "cond-token",
+              "leftValue": "={{ $json.query['hub.verify_token'] }}",
+              "rightValue": "={{ $env.WHATSAPP_VERIFY_TOKEN }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f4c8d6e5-709b-4fae-bdb5-34e6f7081920",
+      "name": "Jeton de vérification valide ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-420, -240]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.query['hub.challenge'] }}",
+        "options": {}
+      },
+      "id": "05d9e7f6-81ac-4bbf-acc6-45f708192031",
+      "name": "Réponse — challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [-180, -320]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "verification_refusee",
+        "options": {
+          "responseCode": 403
+        }
+      },
+      "id": "16eaf807-92bd-4cc0-bdd7-56a081920342",
+      "name": "Réponse — refus",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [-180, -160]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Transfert du corps BRUT de Meta (octet pour octet — sa signature\n// X-Hub-Signature-256 doit rester valide côté HESYD) + construction de la\n// signature du contrat HESYD (src/lib/connectors/n8n.ts, CDC §13.4).\n// Aucun secret ici : le secret partagé est lu par le nœud Crypto via $env.\nconst out = [];\nfor (const item of $input.all()) {\n  const json = item.json || {};\n  const rawBody = json.rawBody !== undefined ? String(json.rawBody) : JSON.stringify(json.body || {});\n  const headers = json.headers || {};\n  const metaSignature = String(headers['x-hub-signature-256'] || '');\n  const timestamp = Date.now().toString();\n  const correlationId = 'n8n-wa-' + timestamp + '-' + Math.random().toString(36).slice(2, 10);\n  out.push({ json: { rawBody: rawBody, metaSignature: metaSignature, timestamp: timestamp, correlationId: correlationId, stringToSign: timestamp + '.' + rawBody } });\n}\nreturn out;"
+      },
+      "id": "27fb0918-a3ce-4dd1-9ee8-67b192035411",
+      "name": "Transfert signé",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-420, 80]
+    },
+    {
+      "parameters": {
+        "action": "hmac",
+        "type": "SHA256",
+        "secret": "={{ $env.N8N_SHARED_SECRET }}",
+        "value": "={{ $json.stringToSign }}",
+        "encoding": "hex"
+      },
+      "id": "38ac12a9-b4df-4ee2-8ff9-78c292036522",
+      "name": "Signature HMAC",
+      "type": "n8n-nodes-base.crypto",
+      "typeVersion": 1,
+      "position": [-180, 80]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.HESYD_BASE_URL }}/api/webhook/whatsapp",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Hub-Signature-256",
+              "value": "={{ $('Transfert signé').first().json.metaSignature }}"
+            },
+            {
+              "name": "X-HESYD-Timestamp",
+              "value": "={{ $('Transfert signé').first().json.timestamp }}"
+            },
+            {
+              "name": "X-HESYD-Signature",
+              "value": "={{ $json.data }}"
+            },
+            {
+              "name": "X-HESYD-Correlation",
+              "value": "={{ $('Transfert signé').first().json.correlationId }}"
+            },
+            {
+              "name": "X-HESYD-Payload-Version",
+              "value": "v1"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $('Transfert signé').first().json.rawBody }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "49bd23ba-c5e0-4ff3-90a8-89d3a2047b3c",
+      "name": "Appel HESYD — webhook WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [60, 80]
+    }
+  ],
+  "connections": {
+    "Webhook GET — vérification Meta": {
+      "main": [
+        [
+          {
+            "node": "Jeton de vérification valide ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jeton de vérification valide ?": {
+      "main": [
+        [
+          {
+            "node": "Réponse — challenge",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Réponse — refus",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook POST — événements Meta": {
+      "main": [
+        [
+          {
+            "node": "Transfert signé",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transfert signé": {
+      "main": [
+        [
+          {
+            "node": "Signature HMAC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Signature HMAC": {
+      "main": [
+        [
+          {
+            "node": "Appel HESYD — webhook WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}
