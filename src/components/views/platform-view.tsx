@@ -226,13 +226,11 @@ export function PlatformView() {
   }, []);
 
   useEffect(() => {
-    void load();
+    // Lancement en microtask : load pose setEtat("loading") via setState avant le
+    // premier await — l'appel reste hors du corps synchrone de l'effet, comportement
+    // identique (la microtask s'exécute avant le prochain évènement).
+    queueMicrotask(() => void load());
   }, [load]);
-
-  // Nouvelle recherche : retour à la première page
-  useEffect(() => {
-    setPage(1);
-  }, [recherche]);
 
   const orgsFiltrees = useMemo(() => {
     if (!data) return [];
@@ -473,7 +471,11 @@ export function PlatformView() {
                 <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
                 <Input
                   value={recherche}
-                  onChange={(e) => setRecherche(e.target.value)}
+                  onChange={(e) => {
+                    setRecherche(e.target.value);
+                    // Nouvelle recherche : retour à la première page
+                    setPage(1);
+                  }}
                   placeholder={t("platform.orgs.search")}
                   aria-label={t("platform.orgs.search")}
                   className="h-11 pl-8 bg-[var(--papier-creuse)]"

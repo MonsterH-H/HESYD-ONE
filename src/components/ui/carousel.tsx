@@ -95,11 +95,14 @@ function Carousel({
 
   React.useEffect(() => {
     if (!api) return
-    onSelect(api)
+    // Sélection initiale dans une microtask d'affichage (rAF) : onSelect met à jour
+    // des états via setState — hors du corps synchrone de l'effet, même comportement.
+    const id = requestAnimationFrame(() => onSelect(api))
     api.on("reInit", onSelect)
     api.on("select", onSelect)
 
     return () => {
+      cancelAnimationFrame(id)
       api?.off("select", onSelect)
     }
   }, [api, onSelect])

@@ -287,9 +287,12 @@ export function AdminView() {
 
   // Chargement paresseux réel : chaque registre charge sa donnée à l'ouverture de l'onglet.
   // Les chargeurs sont partagés entre l'effet d'onglet et les reprises après erreur.
+  // Ils sont lancés dans une microtask : ils réinitialisent leur drapeau d'erreur via
+  // setState avant le premier await, et la microtask évite le rendu en cascade dans
+  // l'effet sans changer le comportement observable.
   useEffect(() => {
     let vivant = true;
-    if (adminTab === "team") void loadUsers();
+    if (adminTab === "team") queueMicrotask(() => void loadUsers());
     if (adminTab === "integrations") {
       apiGet<IntegrationData>("/api/integrations").then((d) => {
         if (vivant && d) setIntegrations(d);
@@ -299,13 +302,13 @@ export function AdminView() {
       apiGet<SubscriptionData>("/api/subscription").then((d) => {
         if (vivant && d) setSubscription(d);
       });
-      void loadInvoices();
+      queueMicrotask(() => void loadInvoices());
     }
     if (adminTab === "security") {
-      void chargerMemoire();
-      void chargerAppairages();
+      queueMicrotask(() => void chargerMemoire());
+      queueMicrotask(() => void chargerAppairages());
     }
-    if (adminTab === "logs") void loadAudit();
+    if (adminTab === "logs") queueMicrotask(() => void loadAudit());
     return () => {
       vivant = false;
     };

@@ -107,7 +107,10 @@ export function OnboardingWizard({ open, onOpenChange }: { open: boolean; onOpen
   }, []);
 
   useEffect(() => {
-    if (open) void refresh();
+    // Lancement hors du corps synchrone de l'effet (microtask) : refresh recharge
+    // des états via setState, la microtask évite le rendu en cascade sans changer
+    // le comportement observable (elle s'exécute avant le prochain évènement).
+    if (open) queueMicrotask(() => void refresh());
   }, [open, refresh]);
 
   // À la première charge : déplier la première étape non faite (sommaire utile)

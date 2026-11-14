@@ -185,9 +185,11 @@ export function FilesView() {
     }
   }, [qDebounce, filtreClient, filtreCategorie, filtreStatut, page]);
 
-  // Registre réel — rechargé à chaque changement de recherche/filtre/page
+  // Registre réel — rechargé à chaque changement de recherche/filtre/page.
+  // Lancement en microtask : chargerRegistre met à jour des états via setState et
+  // l'appel reste hors du corps synchrone de l'effet, même comportement observable.
   useEffect(() => {
-    void chargerRegistre();
+    queueMicrotask(() => void chargerRegistre());
   }, [chargerRegistre]);
 
   useEffect(() => {

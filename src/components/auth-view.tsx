@@ -456,7 +456,9 @@ export function AuthView({
       return;
     }
     setGoogleBusy(true);
-    // Redirection réelle vers la page de consentement Google (flux serveur)
+    // Redirection réelle vers la page de consentement Google (flux serveur) :
+    // navigation pleine page requise — router.push ne déclenche pas ce flux OAuth.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- redirection pleine page requise pour l'OAuth
     window.location.assign("/api/auth/oauth/google");
   }
 
