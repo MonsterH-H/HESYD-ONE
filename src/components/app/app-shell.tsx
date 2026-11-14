@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import { useAppStore, type ViewId, type AdminTab } from "@/store/app";
 import { useI18n } from "@/lib/i18n";
 import { OverviewView } from "@/components/views/overview-view";
@@ -76,10 +76,14 @@ export function AppShell() {
   const onboardingOpen = useAppStore((s) => s.onboardingOpen);
   const { t } = useI18n();
 
+  const onboardingDismissedRef = useRef(false);
   const checkOnboarding = useCallback(async () => {
     // L'assistant de démarrage n'ouvre que pour les rôles capables de réaliser
     // les étapes (audit UI P2 — un LECTEUR voyait 4 étapes vouées au 403).
+    // Garde anti-réouverture : après fermeture explicite, il ne revient pas
+    // tant que la page n'est pas rechargée (session refresh ne le rouvre pas).
     if (!session || !(session.role === "PROPRIETAIRE" || session.role === "ADMINISTRATEUR")) return;
+    if (onboardingDismissedRef.current) return;
     try {
       const res = await fetch("/api/dashboard", { cache: "no-store" });
       const data = await res.json();
@@ -120,17 +124,12 @@ export function AppShell() {
     space === "platform" && isPlatformAdmin ? "platform" : space === "operator" && canAdmin ? "operator" : "documents";
   const NAV = espaceActif === "operator" ? ADMIN_NAV : DOC_NAV;
 
-  const itemActif = NAV.find((n) => n.id === view && (n.tab === undefined || n.tab === adminTab));
-  void itemActif; // le titre actif est calculé ci-dessous (espaces documents / opérateur / plateforme)
   const titreActif =
     espaceActif === "platform"
       ? t("platform.title")
       : espaceActif === "operator" && view === "admin"
         ? t(ADMIN_NAV.find((n) => n.tab === adminTab)?.key ?? "admin.team")
         : t(DOC_NAV.find((n) => n.id === view)?.key ?? "nav.overview");
-
-  const navKey = (item: NavItem) => (item.tab ? (view === "admin" && adminTab === item.tab ? "admin" : item.id) : item.id) as ViewId;
-  void navKey; // réservé : la vue reste « admin » pour toute la console
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -161,7 +160,7 @@ export function AppShell() {
               >
                 <Building2 className="h-4 w-4 shrink-0" />
                 <span className="truncate">{t("nav.platform")}</span>
-                {espaceActif === "platform" && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[var(--cachet)]" aria-hidden="true" />}
+                {espaceActif === "platform" && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-cachet" aria-hidden="true" />}
               </button>
             </div>
           )}
@@ -173,8 +172,7 @@ export function AppShell() {
             <div
               role="tablist"
               aria-label={t("space.switcher")}
-              className="grid grid-cols-2 gap-0 rounded-md border p-0.5"
-              style={{ borderColor: "var(--bordure)", backgroundColor: "var(--papier-creuse)" }}
+              className="grid grid-cols-2 gap-0 rounded-md border border-bordure bg-papier-creuse p-0.5"
             >
               <button
                 role="tab"
@@ -220,7 +218,7 @@ export function AppShell() {
                   >
                     <item.icon className="h-4 w-4 shrink-0" />
                     <span className="truncate">{t(item.key)}</span>
-                    {actif && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[var(--cachet)]" aria-hidden="true" />}
+                    {actif && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-cachet" aria-hidden="true" />}
                   </button>
                 </li>
               );
@@ -241,7 +239,7 @@ export function AppShell() {
                 aria-valuenow={Math.min(100, Math.round(((session?.credits ?? 0) / session.planMonthlyCredits) * 100))}
               >
                 <div
-                  className="h-full rounded-full bg-[var(--cachet)] transition-[width] duration-300"
+                  className="h-full rounded-full bg-cachet transition-[width] duration-300"
                   style={{ width: `${Math.max(2, Math.min(100, ((session?.credits ?? 0) / session.planMonthlyCredits) * 100))}%` }}
                 />
               </div>
@@ -258,15 +256,13 @@ export function AppShell() {
                   <img
                     src={session.user.avatarUrl}
                     alt=""
-                    className="h-6 w-6 rounded-full border object-cover"
-                    style={{ borderColor: "var(--bordure)" }}
+                    className="h-6 w-6 rounded-full border border-bordure object-cover"
                     referrerPolicy="no-referrer"
                   />
                 ) : (
                   <span
                     aria-hidden="true"
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border font-display text-[10px] uppercase"
-                    style={{ borderColor: "var(--bordure)", backgroundColor: "var(--papier-leve)" }}
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-bordure bg-papier-leve font-display text-[10px] uppercase"
                   >
                     {(session?.user.name ?? "?").slice(0, 1)}
                   </span>
@@ -323,8 +319,7 @@ export function AppShell() {
               <div
                 role="tablist"
                 aria-label={t("space.switcher")}
-                className="grid grid-cols-2 gap-0 rounded-md border p-0.5"
-                style={{ borderColor: "var(--bordure)", backgroundColor: "var(--papier-creuse)" }}
+                className="grid grid-cols-2 gap-0 rounded-md border border-bordure bg-papier-creuse p-0.5"
               >
                 <button
                   role="tab"
@@ -348,7 +343,7 @@ export function AppShell() {
                 )}
               </div>
             </div>
-            <div className="px-3 py-2 flex gap-1 overflow-x-auto scroll-fin" role="tablist" aria-label="Sections">
+            <div className="px-3 py-2 flex gap-1 overflow-x-auto scroll-fin" role="tablist" aria-label={t("nav.sections")}>
               {isPlatformAdmin && (
                 <button
                   role="tab"
@@ -379,7 +374,10 @@ export function AppShell() {
             </div>
           </div>
 
-          <main className="flex-1 px-4 md:px-8 py-6 w-full max-w-[1400px]">
+          <main
+            key={`${espaceActif}-${view}-${adminTab}`}
+            className="vue-entree flex-1 px-4 md:px-8 py-6 w-full max-w-[1400px]"
+          >
             {espaceActif === "documents" && (
               <>
                 {view === "overview" && <OverviewView />}
@@ -410,7 +408,13 @@ export function AppShell() {
       </div>
 
       <CommandPalette />
-      <OnboardingWizard open={onboardingOpen} onOpenChange={setOnboardingOpen} />
+      <OnboardingWizard
+        open={onboardingOpen}
+        onOpenChange={(open) => {
+          if (!open) onboardingDismissedRef.current = true;
+          setOnboardingOpen(open);
+        }}
+      />
       <ProfileDialog />
     </div>
   );

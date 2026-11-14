@@ -15,6 +15,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Pill } from "@/components/app/pill";
+import { EtatErreur } from "@/components/app/etat-erreur";
 import { ChevronDown, Loader2, PauseCircle, PlayCircle, Plus, Zap } from "lucide-react";
 
 type Run = {
@@ -47,24 +50,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Pastille : forme + libellé, jamais la couleur seule. */
-function Pill({ tone, shape = "dot", label }: { tone: "ruban" | "carton" | "erreur" | "encre"; shape?: "dot" | "ring" | "cross"; label: string }) {
-  const color = { ruban: "var(--ruban)", carton: "var(--carton)", erreur: "var(--erreur)", encre: "var(--encre-2)" }[tone];
-  return (
-    <span className="inline-flex items-center gap-1.5 text-[11.5px] font-medium whitespace-nowrap" style={{ color }}>
-      {shape === "dot" && <span className="h-2 w-2 rounded-full shrink-0" style={{ background: color }} aria-hidden="true" />}
-      {shape === "ring" && <span className="h-2 w-2 rounded-full border-2 shrink-0" style={{ borderColor: color }} aria-hidden="true" />}
-      {shape === "cross" && (
-        <span className="relative h-2 w-2 shrink-0" aria-hidden="true">
-          <span className="absolute inset-x-0 top-1/2 h-[2px] -translate-y-1/2" style={{ background: color }} />
-          <span className="absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2" style={{ background: color }} />
-        </span>
-      )}
-      <span>{label}</span>
-    </span>
-  );
-}
-
+/** Raccourci de libellé de pastille d'exécution — la pastille elle-même est le composant partagé Pill. */
 function runPill(status: string, label: string) {
   switch (status) {
     case "REUSSI":
@@ -98,6 +84,8 @@ export function AutomationsView() {
   const peutExecuter = role !== "LECTEUR";
 
   const [automations, setAutomations] = useState<Automation[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [erreurChargement, setErreurChargement] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [name, setName] = useState("");
@@ -109,7 +97,10 @@ export function AutomationsView() {
 
   const load = async () => {
     const data = await apiGet<{ automations: Automation[] }>("/api/automations");
+    // apiGet silencieux : null = échec de chargement, jamais une liste vide inventée
+    setErreurChargement(!data);
     if (data?.automations) setAutomations(data.automations);
+    setLoaded(true);
   };
 
   useEffect(() => {
@@ -117,7 +108,9 @@ export function AutomationsView() {
     (async () => {
       const data = await apiGet<{ automations: Automation[] }>("/api/automations");
       if (!vivant) return;
+      setErreurChargement(!data);
       if (data?.automations) setAutomations(data.automations);
+      setLoaded(true);
     })();
     return () => {
       vivant = false;
@@ -202,38 +195,44 @@ export function AutomationsView() {
       </div>
 
       <div className="registre border rounded-md bg-card" role="list" aria-label={t("automations.title")}>
-        {automations.length === 0 ? (
+        {!loaded ? (
+          <div className="space-y-2 p-3" aria-hidden="true">
+            <Skeleton className="h-12 w-full rounded-md" />
+            <Skeleton className="h-12 w-full rounded-md" />
+            <Skeleton className="h-12 w-full rounded-md" />
+          </div>
+        ) : erreurChargement ? (
+          <EtatErreur onRetry={() => void load()} />
+        ) : automations.length === 0 ? (
           <p className="text-[13px] text-muted-foreground px-4 py-6">{t("automations.empty")}</p>
         ) : (
           automations.map((a) => {
             const expanded = expandedId === a.id;
             return (
               <li key={a.id} role="listitem" className="list-none">
-                <button
-                  onClick={() => setExpandedId(expanded ? null : a.id)}
-                  aria-expanded={expanded}
-                  className="registre-row w-full min-h-[52px] text-left px-3 py-2 flex items-center gap-3"
-                >
-                  <span className="text-[13.5px] font-medium truncate min-w-0 flex-1">{a.name}</span>
-                  <span className="text-[12px] text-muted-foreground truncate hidden md:inline max-w-[220px]">{t(`automations.template.${a.template}`)}</span>
-                  <span className="text-[12px] tnum text-muted-foreground shrink-0 hidden sm:inline">{a.cronExpr}</span>
-                  {a.status === "ACTIVE" ? <Pill tone="ruban" shape="dot" label={t("automations.status.ACTIVE")} /> : <Pill tone="carton" shape="ring" label={t("automations.status.PAUSE")} />}
+                {/* Deux zones interactives distinctes sur la même ligne : expansion + pause/activation — jamais de bouton imbriqué */}
+                <div className="flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedId(expanded ? null : a.id)}
+                    aria-expanded={expanded}
+                    className="registre-row min-h-[52px] flex-1 min-w-0 text-left px-3 py-2 flex items-center gap-3"
+                  >
+                    <span className="text-[13.5px] font-medium truncate min-w-0 flex-1">{a.name}</span>
+                    <span className="text-[12px] text-muted-foreground truncate hidden md:inline max-w-[220px]">{t(`automations.template.${a.template}`)}</span>
+                    <span className="text-[12px] tnum text-muted-foreground shrink-0 hidden sm:inline">{a.cronExpr}</span>
+                    {a.status === "ACTIVE" ? <Pill tone="ruban" shape="dot" label={t("automations.status.ACTIVE")} /> : <Pill tone="carton" shape="ring" label={t("automations.status.PAUSE")} />}
+                    <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />
+                  </button>
                   {peutGerer && (
-                    <span
-                      role="button"
-                      tabIndex={0}
+                    <button
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         void toggleStatus(a);
                       }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.stopPropagation();
-                          void toggleStatus(a);
-                        }
-                      }}
                       aria-label={a.status === "ACTIVE" ? t("automations.pause") : t("automations.resume")}
-                      className="inline-flex items-center justify-center gap-1.5 h-9 px-2.5 rounded-md border text-[12px] shrink-0 hover:bg-secondary transition-colors min-w-[44px]"
+                      className="inline-flex items-center justify-center gap-1.5 h-9 px-2.5 rounded-md border text-[12px] shrink-0 mr-3 hover:bg-secondary transition-colors min-w-[44px]"
                     >
                       {pendingId === a.id ? (
                         <PauseCircle className="h-3.5 w-3.5 animate-pulse" aria-hidden="true" />
@@ -243,10 +242,9 @@ export function AutomationsView() {
                         <PlayCircle className="h-3.5 w-3.5" aria-hidden="true" />
                       )}
                       <span className="hidden lg:inline">{a.status === "ACTIVE" ? t("automations.pause") : t("automations.resume")}</span>
-                    </span>
+                    </button>
                   )}
-                  <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />
-                </button>
+                </div>
                 {/* Expansion en ligne — exécutions réelles */}
                 <div className="grid transition-[grid-template-rows] duration-300" style={{ gridTemplateRows: expanded ? "1fr" : "0fr" }}>
                   <div className="overflow-hidden">

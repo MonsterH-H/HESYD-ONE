@@ -10,6 +10,8 @@ import { useI18n } from "@/lib/i18n";
 import { apiGet } from "@/hooks/use-api";
 import { toast } from "@/hooks/use-toast";
 import { useAppStore } from "@/store/app";
+import { EtatErreur } from "@/components/app/etat-erreur";
+import { Pill } from "@/components/app/pill";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, FileSpreadsheet, UploadCloud } from "lucide-react";
 
@@ -50,24 +52,6 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Pastille : forme + libellé, jamais la couleur seule. */
-function Pill({ tone, shape = "dot", label }: { tone: "ruban" | "carton" | "erreur" | "encre"; shape?: "dot" | "ring" | "cross"; label: string }) {
-  const color = { ruban: "var(--ruban)", carton: "var(--carton)", erreur: "var(--erreur)", encre: "var(--encre-2)" }[tone];
-  return (
-    <span className="inline-flex items-center gap-1.5 text-[11.5px] font-medium whitespace-nowrap" style={{ color }}>
-      {shape === "dot" && <span className="h-2 w-2 rounded-full shrink-0" style={{ background: color }} aria-hidden="true" />}
-      {shape === "ring" && <span className="h-2 w-2 rounded-full border-2 shrink-0" style={{ borderColor: color }} aria-hidden="true" />}
-      {shape === "cross" && (
-        <span className="relative h-2 w-2 shrink-0" aria-hidden="true">
-          <span className="absolute inset-x-0 top-1/2 h-[2px] -translate-y-1/2" style={{ background: color }} />
-          <span className="absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2" style={{ background: color }} />
-        </span>
-      )}
-      <span>{label}</span>
-    </span>
-  );
-}
-
 /** Pastille de résultat — CREATION (vert), EXISTANT (carton), REJETE (croix rouge). */
 function resultPill(resultat: string, label: string) {
   switch (resultat) {
@@ -95,7 +79,8 @@ export function ImportsView() {
   // L'import du référentiel est réservé au propriétaire et aux administrateurs (API réelle).
   const peutImporter = role === "PROPRIETAIRE" || role === "ADMINISTRATEUR";
 
-  const [batches, setBatches] = useState<ImportBatch[]>([]);
+  const [batches, setBatches] = useState<ImportBatch[] | null>(null);
+  const [erreur, setErreur] = useState(false);
   const [report, setReport] = useState<ImportReportRow[] | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -108,7 +93,12 @@ export function ImportsView() {
 
   const load = async () => {
     const data = await apiGet<{ batches: ImportBatch[] }>("/api/imports");
-    if (data?.batches) setBatches(data.batches);
+    if (data?.batches) {
+      setBatches(data.batches);
+      setErreur(false);
+    } else {
+      setErreur(true);
+    }
   };
 
   useEffect(() => {
@@ -116,7 +106,12 @@ export function ImportsView() {
     (async () => {
       const data = await apiGet<{ batches: ImportBatch[] }>("/api/imports");
       if (!vivant) return;
-      if (data?.batches) setBatches(data.batches);
+      if (data?.batches) {
+        setBatches(data.batches);
+        setErreur(false);
+      } else {
+        setErreur(true);
+      }
     })();
     return () => {
       vivant = false;
@@ -326,7 +321,19 @@ export function ImportsView() {
       <div>
         <SectionTitle>{t("imports.history")}</SectionTitle>
         <div className="registre border rounded-md bg-card mt-1.5" role="list" aria-label={t("imports.history")}>
-          {batches.length === 0 ? (
+          {batches === null && erreur ? (
+            <EtatErreur
+              onRetry={() => {
+                setErreur(false);
+                void load();
+              }}
+            />
+          ) : batches === null ? (
+            <>
+              <div className="h-[52px] border-b border-[var(--bordure)] animate-pulse" aria-hidden="true" />
+              <div className="h-[52px] animate-pulse" aria-hidden="true" />
+            </>
+          ) : batches.length === 0 ? (
             <p className="text-[13px] text-muted-foreground px-4 py-6">{t("imports.empty")}</p>
           ) : (
             batches.map((b) => {

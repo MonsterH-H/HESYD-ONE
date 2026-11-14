@@ -4,6 +4,49 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  /* — Exposition des tokens HESYD ONE en utilities Tailwind — */
+  --color-papier: var(--papier);
+  --color-papier-leve: var(--papier-leve);
+  --color-papier-creuse: var(--papier-creuse);
+  --color-encre: var(--encre);
+  --color-encre-2: var(--encre-2);
+  --color-encre-3: var(--encre-3);
+  --color-cachet: var(--cachet);
+  --color-cachet-fond: var(--cachet-fond);
+  --color-ruban: var(--ruban);
+  --color-ruban-fond: var(--ruban-fond);
+  --color-carton: var(--carton);
+  --color-carton-fond: var(--carton-fond);
+  --color-erreur: var(--erreur);
+  --color-erreur-fond: var(--erreur-fond);
+  --color-bordure: var(--bordure);
+  --color-bordure-forte: var(--bordure-forte);
+  --color-voile: var(--voile);
+
+  /* — Échelle typographique du registre (ratio 1.25 : 13 · 16 · 20 · 25 · 31 · 39) — */
+  --text-meta: 13px;
+  --text-corps: 16px;
+  --text-section: 20px;
+  --text-titre: 25px;
+  --text-page: 31px;
+  --text-hero: 39px;
+
+  /* — Espacement du registre (4/8/12/16/24/32/48/64) — */
+  --spacing-espace-1: 4px;
+  --spacing-espace-2: 8px;
+  --spacing-espace-3: 12px;
+  --spacing-espace-4: 16px;
+  --spacing-espace-5: 24px;
+  --spacing-espace-6: 32px;
+  --spacing-espace-7: 48px;
+  --spacing-espace-8: 64px;
+
+  /* — Courbes de mouvement (extension du token existant du système, pas de fork) — */
+  --ease-out: var(--ease-hesyd);
+  --ease-in-out: var(--ease-hesyd-inout);
+  --ease-drawer: var(--ease-hesyd-drawer);
+
+  /* — Mapping shadcn — */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans-text);
@@ -25,6 +68,7 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -37,22 +81,17 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --color-cachet: var(--cachet);
-  --color-cachet-fond: var(--cachet-fond);
-  --color-ruban: var(--ruban);
-  --color-ruban-fond: var(--ruban-fond);
-  --color-carton: var(--carton);
-  --color-carton-fond: var(--carton-fond);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-sm: calc(var(--rayon) - 4px);
+  --radius-md: calc(var(--rayon) - 2px);
+  --radius-lg: var(--rayon);
+  --radius-xl: calc(var(--rayon) + 4px);
 }
 
 :root {
-  --radius: 0.375rem;
-
   /* — HESYD ONE · thème clair « papier » — */
+  --rayon: 6px;
+  --radius: var(--rayon);
+
   --papier: oklch(0.968 0.008 85);
   --papier-leve: oklch(0.985 0.006 85);
   --papier-creuse: oklch(0.938 0.011 82);
@@ -69,6 +108,17 @@
   --erreur-fond: oklch(0.955 0.03 25);
   --bordure: oklch(0.245 0.018 65 / 0.14);
   --bordure-forte: oklch(0.245 0.018 65 / 0.26);
+  /* Voile des superpositions (scrim sombre dans les deux thèmes — c'est sa fonction) */
+  --voile: oklch(0.22 0.015 75 / 0.55);
+
+  /* Mouvement : retour 120ms · état 220ms · mise en page 320ms · cachet 480ms (moment fort) */
+  --ease-hesyd: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-hesyd-inout: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-hesyd-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --duree-retour: 120ms;
+  --duree-etat: 220ms;
+  --duree-mise-en-page: 320ms;
+  --duree-cachet: 480ms;
 
   /* shadcn mapping */
   --background: var(--papier);
@@ -78,7 +128,7 @@
   --popover: var(--papier-leve);
   --popover-foreground: var(--encre);
   --primary: var(--cachet);
-  --primary-foreground: oklch(0.985 0.006 85);
+  --primary-foreground: var(--papier-leve);
   --secondary: var(--papier-creuse);
   --secondary-foreground: var(--encre);
   --muted: var(--papier-creuse);
@@ -86,6 +136,7 @@
   --accent: var(--cachet-fond);
   --accent-foreground: var(--encre);
   --destructive: var(--erreur);
+  --destructive-foreground: var(--papier-leve);
   --border: var(--bordure);
   --input: var(--bordure);
   --ring: var(--cachet);
@@ -97,24 +148,15 @@
   --sidebar: var(--papier);
   --sidebar-foreground: var(--encre);
   --sidebar-primary: var(--cachet);
-  --sidebar-primary-foreground: oklch(0.985 0.006 85);
+  --sidebar-primary-foreground: var(--papier-leve);
   --sidebar-accent: var(--papier-leve);
   --sidebar-accent-foreground: var(--encre);
   --sidebar-border: var(--bordure);
   --sidebar-ring: var(--cachet);
-
-  --espace-1: 4px;
-  --espace-2: 8px;
-  --espace-3: 12px;
-  --espace-4: 16px;
-  --espace-5: 24px;
-  --espace-6: 32px;
-  --espace-7: 48px;
-  --espace-8: 64px;
 }
 
 .dark {
-  /* — HESYD ONE · thème sombre « encre » (pensé, non inversé) — */
+  /* — HESYD ONE · thème sombre « encre » (pensé, non inversé : plus haut = plus clair) — */
   --papier: oklch(0.185 0.012 75);
   --papier-leve: oklch(0.225 0.012 75);
   --papier-creuse: oklch(0.155 0.010 75);
@@ -131,7 +173,10 @@
   --erreur-fond: oklch(0.26 0.050 25);
   --bordure: oklch(0.905 0.012 85 / 0.13);
   --bordure-forte: oklch(0.905 0.012 85 / 0.24);
+  --voile: oklch(0.12 0.012 75 / 0.65);
 
+  /* Divergence intentionnelle : en sombre, les contrôles (secondary/muted) sont plus
+     clairs que le fond — pensée « encre », pas inversion mécanique. */
   --background: var(--papier);
   --foreground: var(--encre);
   --card: var(--papier-leve);
@@ -147,6 +192,7 @@
   --accent: var(--cachet-fond);
   --accent-foreground: var(--encre);
   --destructive: var(--erreur);
+  --destructive-foreground: oklch(0.14 0.01 75);
   --border: var(--bordure);
   --input: var(--bordure);
   --ring: var(--cachet);
@@ -171,9 +217,11 @@
   }
   html {
     font-size: 16px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--bordure-forte) transparent;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-papier text-encre;
     font-family: var(--font-sans-text), ui-sans-serif, sans-serif;
     font-feature-settings: "tnum" 1, "ss01" 0;
   }
@@ -195,6 +243,15 @@
   }
 }
 
+/* — Cibles tactiles ≥ 44px sur pointeur grossier (iOS/Android) — */
+@media (pointer: coarse) {
+  button,
+  [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
 /* — Registres HESYD ONE — */
 .font-display {
   font-family: var(--font-sans-display), serif;
@@ -209,7 +266,7 @@
 }
 .registre-row {
   border-bottom: 1px solid var(--bordure);
-  transition: background-color 120ms cubic-bezier(0.25, 1, 0.5, 1);
+  transition: background-color var(--duree-retour) var(--ease-hesyd);
 }
 .registre-row:hover {
   background-color: var(--papier-leve);
@@ -221,7 +278,18 @@
   color: var(--encre-3);
 }
 
-/* — Cachet d'archivage (signature) — */
+/* — Entrée de vue (une seule fade à chaque changement de vue, transform+opacity) — */
+@keyframes vue-entree {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.vue-entree {
+  animation: vue-entree var(--duree-etat) var(--ease-hesyd) both;
+}
+
+/* — Cachet d'archivage (moment fort unique, uniquement sur confirmation réelle) — */
 @keyframes apposition-cachet {
   0% {
     transform: scale(1.6) rotate(-8deg);
@@ -237,16 +305,27 @@
   }
 }
 .cachet-anime {
-  animation: apposition-cachet 480ms cubic-bezier(0.25, 1, 0.5, 1) both;
+  animation: apposition-cachet var(--duree-cachet) var(--ease-hesyd) both;
 }
 
+/* — Réduction du mouvement : plus doux, pas zéro (opacité conservée) — */
 @media (prefers-reduced-motion: reduce) {
   .cachet-anime {
     animation: none;
   }
-  * {
+  .vue-entree {
+    animation-duration: 1ms;
+    transform: none;
+  }
+  *,
+  *::before,
+  *::after {
     transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
     animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
   }
 }
 

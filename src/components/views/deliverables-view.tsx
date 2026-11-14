@@ -16,7 +16,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EtatErreur } from "@/components/app/etat-erreur";
 import { toast } from "@/hooks/use-toast";
 import { ChevronDown, Download, FileText, Loader2, Plus, Trash2 } from "lucide-react";
 
@@ -67,6 +69,8 @@ export function DeliverablesView() {
   const peutGenerer = role !== "LECTEUR";
 
   const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [erreurChargement, setErreurChargement] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
 
@@ -83,6 +87,25 @@ export function DeliverablesView() {
     if (data?.deliverables) setDeliverables(data.deliverables);
   };
 
+  const load = async () => {
+    const [d, f] = await Promise.all([
+      apiGet<{ deliverables: Deliverable[] }>("/api/deliverables"),
+      apiGet<{ files: { id: string; originalFilename: string; clientName?: string | null; status: string }[] }>("/api/files?page=1"),
+    ]);
+    if (d?.deliverables) setDeliverables(d.deliverables);
+    // apiGet silencieux : null = échec de chargement, jamais une liste vide inventée
+    setErreurChargement(!d);
+    if (f?.files) {
+      setSourceFiles(
+        f.files
+          .filter((x) => x.status === "ARCHIVE")
+          .slice(0, 50)
+          .map((x) => ({ id: x.id, label: x.originalFilename + (x.clientName ? ` — ${x.clientName}` : "") }))
+      );
+    }
+    setLoaded(true);
+  };
+
   useEffect(() => {
     let vivant = true;
     (async () => {
@@ -92,6 +115,7 @@ export function DeliverablesView() {
       ]);
       if (!vivant) return;
       if (d?.deliverables) setDeliverables(d.deliverables);
+      setErreurChargement(!d);
       if (f?.files) {
         setSourceFiles(
           f.files
@@ -100,6 +124,7 @@ export function DeliverablesView() {
             .map((x) => ({ id: x.id, label: x.originalFilename + (x.clientName ? ` — ${x.clientName}` : "") }))
         );
       }
+      setLoaded(true);
     })();
     return () => {
       vivant = false;
@@ -175,45 +200,50 @@ export function DeliverablesView() {
       </div>
 
       <div className="registre border rounded-md bg-card" role="list" aria-label={t("deliverables.title")}>
-        {deliverables.length === 0 ? (
+        {!loaded ? (
+          <div className="space-y-2 p-3" aria-hidden="true">
+            <Skeleton className="h-12 w-full rounded-md" />
+            <Skeleton className="h-12 w-full rounded-md" />
+            <Skeleton className="h-12 w-full rounded-md" />
+          </div>
+        ) : erreurChargement ? (
+          <EtatErreur onRetry={() => void load()} />
+        ) : deliverables.length === 0 ? (
           <p className="text-[13px] text-muted-foreground px-4 py-6">{t("deliverables.empty")}</p>
         ) : (
           deliverables.map((d) => {
             const expanded = expandedId === d.id;
             return (
               <li key={d.id} role="listitem" className="list-none">
-                <button
-                  onClick={() => setExpandedId(expanded ? null : d.id)}
-                  aria-expanded={expanded}
-                  className="registre-row w-full min-h-[52px] text-left px-3 py-2 flex items-center gap-3"
-                >
-                  <span className="text-[13.5px] font-medium truncate min-w-0 flex-1">{d.title}</span>
-                  <Badge variant="outline" className="text-[10.5px] font-normal shrink-0 px-1.5">{d.type}</Badge>
-                  <span className="text-[12px] tnum text-muted-foreground shrink-0">{t("deliverables.version")} v{d.version}</span>
-                  <span className="text-[12px] tnum text-muted-foreground shrink-0 hidden sm:inline">{humanSize(d.sizeBytes)}</span>
-                  <span className="text-[12px] tnum text-muted-foreground shrink-0 hidden md:inline">{new Date(d.createdAt).toLocaleDateString()}</span>
-                  <span
-                    role="button"
-                    tabIndex={0}
+                {/* Deux zones interactives distinctes sur la même ligne : expansion + téléchargement — jamais de bouton imbriqué */}
+                <div className="flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedId(expanded ? null : d.id)}
+                    aria-expanded={expanded}
+                    className="registre-row min-h-[52px] flex-1 min-w-0 text-left px-3 py-2 flex items-center gap-3"
+                  >
+                    <span className="text-[13.5px] font-medium truncate min-w-0 flex-1">{d.title}</span>
+                    <Badge variant="outline" className="text-[10.5px] font-normal shrink-0 px-1.5">{d.type}</Badge>
+                    <span className="text-[12px] tnum text-muted-foreground shrink-0">{t("deliverables.version")} v{d.version}</span>
+                    <span className="text-[12px] tnum text-muted-foreground shrink-0 hidden sm:inline">{humanSize(d.sizeBytes)}</span>
+                    <span className="text-[12px] tnum text-muted-foreground shrink-0 hidden md:inline">{new Date(d.createdAt).toLocaleDateString()}</span>
+                    <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       telecharger(d);
                     }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.stopPropagation();
-                        telecharger(d);
-                      }
-                    }}
                     aria-label={t("deliverables.download")}
                     title={t("deliverables.download")}
-                    className="inline-flex items-center justify-center h-9 px-2.5 rounded-md border text-[12px] shrink-0 hover:bg-secondary transition-colors"
+                    className="inline-flex items-center justify-center h-9 px-2.5 rounded-md border text-[12px] shrink-0 mr-3 hover:bg-secondary transition-colors"
                   >
                     <Download className="h-3.5 w-3.5" aria-hidden="true" />
                     <span className="sr-only sm:not-sr-only sm:ml-1.5">{t("deliverables.download")}</span>
-                  </span>
-                  <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />
-                </button>
+                  </button>
+                </div>
                 {/* Expansion en ligne — hauteur par grid-template-rows, jamais de modal */}
                 <div
                   className="grid transition-[grid-template-rows] duration-300"
@@ -263,14 +293,14 @@ export function DeliverablesView() {
       </div>
 
       {/* Génération réelle : sections éditables, sources citées du registre, contrôle avant remise */}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-[640px] max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="font-display">{t("deliverables.generateTitle")}</DialogTitle>
-            <DialogDescription>{t("deliverables.generateHint")}</DialogDescription>
-          </DialogHeader>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent side="right" className="sm:max-w-2xl overflow-y-auto scroll-fin">
+          <SheetHeader>
+            <SheetTitle className="font-display">{t("deliverables.generateTitle")}</SheetTitle>
+            <SheetDescription>{t("deliverables.generateHint")}</SheetDescription>
+          </SheetHeader>
 
-          <div className="space-y-4">
+          <div className="flex-1 space-y-4 px-4">
             <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="liv-type">{t("deliverables.field.type")}</Label>
@@ -339,15 +369,15 @@ export function DeliverablesView() {
             )}
           </div>
 
-          <DialogFooter>
+          <SheetFooter className="flex-row justify-end gap-2">
             <Button variant="outline" onClick={() => setOpen(false)}>{t("common.cancel")}</Button>
             <Button onClick={submit} disabled={loading || !title.trim()}>
               {loading && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
               {t("deliverables.generateCta")}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

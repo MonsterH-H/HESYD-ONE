@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Copy, FileUp } from "lucide-react";
+import { Copy, FileUp } from "lucide-react";
 import { useAppStore } from "@/store/app";
 import { useI18n } from "@/lib/i18n";
 import { apiGet } from "@/hooks/use-api";
 import { toast } from "@/hooks/use-toast";
 import { Cachet, StatusPill, ChainCustody } from "@/components/app/cachet";
+import { EtatErreur } from "@/components/app/etat-erreur";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,7 +43,6 @@ const CATEGORIES = [
 ] as const;
 
 const PAGE_SIZE = 50;
-const ETAPES_PIPELINE = ["files.upload.progress", "files.upload.parse", "files.upload.classify", "files.upload.archive", "files.upload.index"] as const;
 
 /** Statuts filtrables — alignés sur /api/files (les rejets justifiés restent exclus par défaut). */
 const STATUS_FILTRES = [
@@ -133,6 +133,7 @@ export function FilesView() {
   // — Liste —
   const [files, setFiles] = useState<FileRecord[] | null>(null);
   const [total, setTotal] = useState(0);
+  const [erreur, setErreur] = useState(false);
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
   const [qDebounce, setQDebounce] = useState("");
@@ -154,10 +155,8 @@ export function FilesView() {
   const [uploadGroup, setUploadGroup] = useState("");
   const [caption, setCaption] = useState("");
   const [uploadEnCours, setUploadEnCours] = useState(false);
-  const [etape, setEtape] = useState(0);
   const [resultat, setResultat] = useState<IngestResult | null>(null);
   const inputFichierRef = useRef<HTMLInputElement>(null);
-  const minuteurRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Recherche réelle avec temporisation 400 ms
   useEffect(() => {
@@ -168,7 +167,8 @@ export function FilesView() {
     return () => clearTimeout(id);
   }, [q]);
 
-  const refetch = useCallback(async () => {
+  // — Liste : un seul chargeur partagé par l'effet et les reprises après mutation —
+  const chargerRegistre = useCallback(async () => {
     const params = new URLSearchParams();
     if (qDebounce) params.set("q", qDebounce);
     if (filtreClient) params.set("clientId", filtreClient);
@@ -179,28 +179,16 @@ export function FilesView() {
     if (d) {
       setFiles(d.files);
       setTotal(d.total);
+      setErreur(false);
+    } else {
+      setErreur(true);
     }
   }, [qDebounce, filtreClient, filtreCategorie, filtreStatut, page]);
 
-  // Registre réel — rechargé à chaque changement de recherche/filtre/page (callback asynchrone)
+  // Registre réel — rechargé à chaque changement de recherche/filtre/page
   useEffect(() => {
-    let vivant = true;
-    const params = new URLSearchParams();
-    if (qDebounce) params.set("q", qDebounce);
-    if (filtreClient) params.set("clientId", filtreClient);
-    if (filtreCategorie) params.set("category", filtreCategorie);
-    if (filtreStatut) params.set("status", filtreStatut);
-    params.set("page", String(page));
-    apiGet<{ total: number; page: number; files: FileRecord[] }>(`/api/files?${params.toString()}`).then((d) => {
-      if (vivant && d) {
-        setFiles(d.files);
-        setTotal(d.total);
-      }
-    });
-    return () => {
-      vivant = false;
-    };
-  }, [qDebounce, filtreClient, filtreCategorie, filtreStatut, page]);
+    void chargerRegistre();
+  }, [chargerRegistre]);
 
   useEffect(() => {
     apiGet<{ clients: ClientLite[] }>("/api/clients").then((d) => {
@@ -225,12 +213,6 @@ export function FilesView() {
     };
   }, [detailFileId, setDetailFileId]);
 
-  useEffect(() => {
-    return () => {
-      if (minuteurRef.current) clearInterval(minuteurRef.current);
-    };
-  }, []);
-
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   // Chargement dérivé : la fiche demandée n'est pas encore celle chargée
   const detailChargement = !!detailFileId && (!detail || detail.file.id !== detailFileId);
@@ -249,27 +231,11 @@ export function FilesView() {
     }
   };
 
-  // — Dépôt : progression présentée, réussite confirmée par le serveur seul —
-  const demarrerMinuteur = () => {
-    setEtape(0);
-    if (minuteurRef.current) clearInterval(minuteurRef.current);
-    minuteurRef.current = setInterval(() => {
-      setEtape((e) => Math.min(ETAPES_PIPELINE.length - 1, e + 1));
-    }, 1400);
-  };
-
-  const arreterMinuteur = () => {
-    if (minuteurRef.current) {
-      clearInterval(minuteurRef.current);
-      minuteurRef.current = null;
-    }
-  };
-
+  // — Dépôt : état d'attente honnête pendant le POST, réussite confirmée par le serveur seul —
   const deposer = async () => {
     if (!fichier) return;
     setUploadEnCours(true);
     setResultat(null);
-    demarrerMinuteur();
 
     const fd = new FormData();
     fd.append("file", fichier);
@@ -280,7 +246,6 @@ export function FilesView() {
     try {
       const res = await fetch("/api/files/upload", { method: "POST", body: fd });
       const data = (await res.json().catch(() => ({}))) as IngestResult & { error?: string };
-      arreterMinuteur();
       if (!res.ok) {
         const cause = data.error ?? t("common.errorNetwork");
         toast({
@@ -289,7 +254,6 @@ export function FilesView() {
           variant: "destructive",
         });
       } else {
-        setEtape(ETAPES_PIPELINE.length);
         if (data.deduped) toast({ description: t("toast.dedup") });
         if (data.status === "ARCHIVE") setResultat(data);
         else if (data.error) {
@@ -299,10 +263,9 @@ export function FilesView() {
             variant: "destructive",
           });
         }
-        refetch();
+        void chargerRegistre();
       }
     } catch {
-      arreterMinuteur();
       toast({
         title: t("common.error"),
         description: t("toast.uploadError").replace("{cause}", t("common.errorNetwork")),
@@ -321,9 +284,7 @@ export function FilesView() {
       setUploadGroup("");
       setCaption("");
       setUploadEnCours(false);
-      setEtape(0);
       setResultat(null);
-      arreterMinuteur();
     }
   };
 
@@ -420,7 +381,16 @@ export function FilesView() {
           <span className="w-24 shrink-0 text-right">{t("common.date")}</span>
         </div>
 
-        {files === null && (
+        {files === null && erreur && (
+          <EtatErreur
+            onRetry={() => {
+              setErreur(false);
+              void chargerRegistre();
+            }}
+          />
+        )}
+
+        {files === null && !erreur && (
           <>
             <Skeleton className="h-12 w-full rounded-md" />
             <Skeleton className="mt-2 h-12 w-full rounded-md" />
@@ -728,35 +698,17 @@ export function FilesView() {
               />
             </div>
 
-            {/* Étapes réelles du pipeline — la réussite finale vient du serveur */}
+            {/* Phase d'attente honnête : un seul état, aucune étape prédite, aucun pourcentage simulé */}
             {uploadEnCours && (
               <div className="mt-4 rounded-md border border-[var(--bordure)] p-3" aria-busy="true">
-                <ul className="space-y-2">
-                  {ETAPES_PIPELINE.map((k, i) => {
-                    const fait = i < etape;
-                    const actif = i === etape;
-                    return (
-                      <li key={k} className="flex items-center gap-2.5 text-[12.5px]">
-                        <span
-                          className="flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full"
-                          style={
-                            fait
-                              ? { background: "var(--ruban)", color: "var(--ruban-fond)" }
-                              : actif
-                                ? { border: "2px solid var(--cachet)" }
-                                : { border: "2px solid var(--bordure-forte)" }
-                          }
-                          aria-hidden="true"
-                        >
-                          {fait && <Check className="h-2.5 w-2.5" />}
-                        </span>
-                        <span className={actif ? "font-medium" : "text-muted-foreground"}>
-                          {t(k)}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
+                <p className="flex items-center gap-2.5 text-[12.5px] animate-pulse">
+                  <span
+                    className="h-2 w-2 shrink-0 rounded-full border-2"
+                    style={{ borderColor: "var(--carton)" }}
+                    aria-hidden="true"
+                  />
+                  {t("files.depot_en_cours")}
+                </p>
               </div>
             )}
 

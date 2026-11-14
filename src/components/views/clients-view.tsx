@@ -7,6 +7,7 @@ import { useI18n } from "@/lib/i18n";
 import { useApi, apiGet } from "@/hooks/use-api";
 import { toast } from "@/hooks/use-toast";
 import { StatusPill } from "@/components/app/cachet";
+import { EtatErreur } from "@/components/app/etat-erreur";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -75,6 +76,7 @@ export function ClientsView() {
 
   const [clients, setClients] = useState<ClientRow[] | null>(null);
   const [chargement, setChargement] = useState(true);
+  const [erreur, setErreur] = useState(false);
 
   // Filtres réels
   const [recherche, setRecherche] = useState("");
@@ -92,7 +94,12 @@ export function ClientsView() {
 
   const refetch = useCallback(async () => {
     const d = await apiGet<{ clients: ClientRow[] }>("/api/clients");
-    if (d) setClients(d.clients);
+    if (d) {
+      setClients(d.clients);
+      setErreur(false);
+    } else {
+      setErreur(true);
+    }
   }, []);
 
   // Premier chargement du registre (callback asynchrone — jamais de setState synchrone dans l'effet)
@@ -100,7 +107,12 @@ export function ClientsView() {
     let vivant = true;
     apiGet<{ clients: ClientRow[] }>("/api/clients").then((d) => {
       if (!vivant) return;
-      if (d) setClients(d.clients);
+      if (d) {
+        setClients(d.clients);
+        setErreur(false);
+      } else {
+        setErreur(true);
+      }
       setChargement(false);
     });
     return () => {
@@ -255,12 +267,22 @@ export function ClientsView() {
           <span className="w-[168px] shrink-0 text-right">{t("common.actions")}</span>
         </div>
 
-        {chargement && !clients && (
+        {clients === null && chargement && !erreur && (
           <>
             <Skeleton className="h-12 w-full rounded-md" />
             <Skeleton className="mt-2 h-12 w-full rounded-md" />
             <Skeleton className="mt-2 h-12 w-full rounded-md" />
           </>
+        )}
+
+        {clients === null && erreur && (
+          <EtatErreur
+            onRetry={() => {
+              setErreur(false);
+              setChargement(true);
+              void refetch();
+            }}
+          />
         )}
 
         {clientsFiltres && clientsFiltres.length === 0 && (

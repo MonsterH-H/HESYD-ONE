@@ -5,7 +5,11 @@ import { safeJsonParse } from "@/lib/helpers";
 import { createDeliverable } from "@/lib/deliverables/generate";
 import { signLink } from "@/lib/signed-links";
 import { logAudit } from "@/lib/audit";
+import { consumeRateLimitWindow } from "@/lib/rate-limit";
 import { z } from "zod";
+
+const DELIVERABLES_LIMIT = 20;
+const DELIVERABLES_WINDOW_MS = 15 * 60 * 1000;
 
 export async function GET() {
   return handle(async () => {
@@ -55,6 +59,15 @@ const createSchema = z.object({
 export async function POST(req: Request) {
   return handle(async () => {
     const auth = await requireAuth();
+    // Anti-abus persisté : 20 générations / 15 min par organisation+utilisateur (audit P3)
+    const rl = await consumeRateLimitWindow(
+      `DELIVERABLES_POST:${auth.organization.id}:${auth.user.id}`,
+      DELIVERABLES_LIMIT,
+      DELIVERABLES_WINDOW_MS
+    );
+    if (!rl.allowed) {
+      return Response.json({ error: "trop_de_tentatives", retryAfterSeconds: rl.retryAfterSeconds }, { status: 429 });
+    }
     if (!["PROPRIETAIRE", "ADMINISTRATEUR", "EMPLOYE"].includes(auth.role)) throw new Error("forbidden");
     const body = createSchema.safeParse(await readJson<unknown>(req));
     if (!body.success) throw new Error("donnees_incompletes");

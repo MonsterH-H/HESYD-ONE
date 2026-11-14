@@ -11,6 +11,8 @@ import { useApi, apiGet } from "@/hooks/use-api";
 import { toast } from "@/hooks/use-toast";
 import { useAppStore, type AdminTab } from "@/store/app";
 import { QuotaBar } from "@/components/app/cachet";
+import { EtatErreur } from "@/components/app/etat-erreur";
+import { Pill } from "@/components/app/pill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -107,6 +109,8 @@ type Invoice = {
 
 const INVITE_ROLES = ["EMPLOYE", "ADMINISTRATEUR", "LECTEUR"] as const;
 const CONNECTORS = ["GOOGLE_DRIVE", "WHATSAPP_CLOUD", "POLAR", "N8N"] as const;
+/** Pagination du journal d'audit — alignée sur la taille de page de /api/audit. */
+const AUDIT_PAGE_SIZE = 50;
 const TABS: { id: AdminTab; key: string }[] = [
   { id: "team", key: "admin.team" },
   { id: "integrations", key: "admin.integrations" },
@@ -175,24 +179,6 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Pastille : forme + libellé, jamais la couleur seule. */
-function Pill({ tone, shape = "dot", label }: { tone: "ruban" | "carton" | "erreur" | "encre"; shape?: "dot" | "ring" | "cross"; label: string }) {
-  const color = { ruban: "var(--ruban)", carton: "var(--carton)", erreur: "var(--erreur)", encre: "var(--encre-2)" }[tone];
-  return (
-    <span className="inline-flex items-center gap-1.5 text-[11.5px] font-medium whitespace-nowrap" style={{ color }}>
-      {shape === "dot" && <span className="h-2 w-2 rounded-full shrink-0" style={{ background: color }} aria-hidden="true" />}
-      {shape === "ring" && <span className="h-2 w-2 rounded-full border-2 shrink-0" style={{ borderColor: color }} aria-hidden="true" />}
-      {shape === "cross" && (
-        <span className="relative h-2 w-2 shrink-0" aria-hidden="true">
-          <span className="absolute inset-x-0 top-1/2 h-[2px] -translate-y-1/2" style={{ background: color }} />
-          <span className="absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2" style={{ background: color }} />
-        </span>
-      )}
-      <span>{label}</span>
-    </span>
-  );
-}
-
 function integrationPill(status: string, label: string) {
   switch (status) {
     case "CONNECTE":
@@ -216,15 +202,19 @@ export function AdminView() {
   const refreshSession = useAppStore((s) => s.refreshSession);
 
   const [users, setUsers] = useState<Membership[] | null>(null);
+  const [erreurUsers, setErreurUsers] = useState(false);
   const [invites, setInvites] = useState<Invite[]>([]);
   const [integrations, setIntegrations] = useState<IntegrationData | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
   const [audit, setAudit] = useState<AuditData | null>(null);
+  const [erreurAudit, setErreurAudit] = useState(false);
   const [auditPage, setAuditPage] = useState(1);
 
   // Sécurité et mémoire
   const [memories, setMemories] = useState<MemoryItem[] | null>(null);
+  const [erreurMemories, setErreurMemories] = useState(false);
   const [pairings, setPairings] = useState<PairingData | null>(null);
+  const [erreurPairings, setErreurPairings] = useState(false);
   const [memoryContent, setMemoryContent] = useState("");
   const [memoryBusy, setMemoryBusy] = useState(false);
   const [confirmMemoryDelete, setConfirmMemoryDelete] = useState<MemoryItem | null>(null);
@@ -235,6 +225,7 @@ export function AdminView() {
 
   // Abonnement : factures et résiliation
   const [invoices, setInvoices] = useState<Invoice[] | null>(null);
+  const [erreurInvoices, setErreurInvoices] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelBusy, setCancelBusy] = useState(false);
@@ -256,24 +247,49 @@ export function AdminView() {
   const canInvite = session?.role === "PROPRIETAIRE" || session?.role === "ADMINISTRATEUR";
 
   const loadUsers = useCallback(async () => {
+    setErreurUsers(false);
     const data = await apiGet<{ users: Membership[]; invites: Invite[] }>("/api/users");
     if (data) {
       setUsers(data.users ?? []);
       setInvites(data.invites ?? []);
+    } else {
+      setErreurUsers(true);
     }
   }, []);
 
+  const loadInvoices = useCallback(async () => {
+    setErreurInvoices(false);
+    const d = await apiGet<{ invoices: Invoice[] }>("/api/subscription/attestation");
+    if (d) setInvoices(d.invoices ?? []);
+    else setErreurInvoices(true);
+  }, []);
+
+  const loadAudit = useCallback(async () => {
+    setErreurAudit(false);
+    const d = await apiGet<AuditData>(`/api/audit?page=${auditPage}`);
+    if (d) setAudit(d);
+    else setErreurAudit(true);
+  }, [auditPage]);
+
+  const chargerMemoire = useCallback(async () => {
+    setErreurMemories(false);
+    const d = await apiGet<{ memories: MemoryItem[] }>("/api/memory");
+    if (d) setMemories(d.memories ?? []);
+    else setErreurMemories(true);
+  }, []);
+
+  const chargerAppairages = useCallback(async () => {
+    setErreurPairings(false);
+    const d = await apiGet<PairingData>("/api/whatsapp/pairing");
+    if (d) setPairings(d);
+    else setErreurPairings(true);
+  }, []);
+
   // Chargement paresseux réel : chaque registre charge sa donnée à l'ouverture de l'onglet.
-  // Les promesses sont enchaînées dans des callbacks asynchrones — jamais de setState synchrone dans l'effet.
+  // Les chargeurs sont partagés entre l'effet d'onglet et les reprises après erreur.
   useEffect(() => {
     let vivant = true;
-    if (adminTab === "team") {
-      apiGet<{ users: Membership[]; invites: Invite[] }>("/api/users").then((d) => {
-        if (!vivant || !d) return;
-        setUsers(d.users ?? []);
-        setInvites(d.invites ?? []);
-      });
-    }
+    if (adminTab === "team") void loadUsers();
     if (adminTab === "integrations") {
       apiGet<IntegrationData>("/api/integrations").then((d) => {
         if (vivant && d) setIntegrations(d);
@@ -283,27 +299,17 @@ export function AdminView() {
       apiGet<SubscriptionData>("/api/subscription").then((d) => {
         if (vivant && d) setSubscription(d);
       });
-      apiGet<{ invoices: Invoice[] }>("/api/subscription/attestation").then((d) => {
-        if (vivant && d) setInvoices(d.invoices ?? []);
-      });
+      void loadInvoices();
     }
     if (adminTab === "security") {
-      apiGet<{ memories: MemoryItem[] }>("/api/memory").then((d) => {
-        if (vivant && d) setMemories(d.memories ?? []);
-      });
-      apiGet<PairingData>("/api/whatsapp/pairing").then((d) => {
-        if (vivant && d) setPairings(d);
-      });
+      void chargerMemoire();
+      void chargerAppairages();
     }
-    if (adminTab === "logs") {
-      apiGet<AuditData>(`/api/audit?page=${auditPage}`).then((d) => {
-        if (vivant && d) setAudit(d);
-      });
-    }
+    if (adminTab === "logs") void loadAudit();
     return () => {
       vivant = false;
     };
-  }, [adminTab, auditPage]);
+  }, [adminTab, auditPage, loadUsers, loadInvoices, loadAudit, chargerMemoire, chargerAppairages]);
 
   // Compte à rebours du code d'appairage actif (15 minutes, honnête jusqu'à l'expiration)
   useEffect(() => {
@@ -384,16 +390,6 @@ export function AdminView() {
   };
 
   // ————— Sécurité et mémoire : actions réelles —————
-
-  const chargerMemoire = useCallback(async () => {
-    const d = await apiGet<{ memories: MemoryItem[] }>("/api/memory");
-    if (d) setMemories(d.memories ?? []);
-  }, []);
-
-  const chargerAppairages = useCallback(async () => {
-    const d = await apiGet<PairingData>("/api/whatsapp/pairing");
-    if (d) setPairings(d);
-  }, []);
 
   const ajouterMemoire = async () => {
     const content = memoryContent.trim();
@@ -552,7 +548,8 @@ export function AdminView() {
           </div>
 
           <div className="registre border rounded-md bg-card" role="list" aria-label={t("admin.users.title")}>
-            {users === null && (
+            {users === null && erreurUsers && <EtatErreur compact onRetry={() => void loadUsers()} />}
+            {users === null && !erreurUsers && (
               <>
                 <Skeleton className="h-12 w-full rounded-md" />
                 <Skeleton className="mt-2 h-12 w-full rounded-md" />
@@ -770,7 +767,8 @@ export function AdminView() {
           <div className="pt-3 space-y-3">
             <SectionTitle>{t("admin.subscription.invoices")}</SectionTitle>
             <div className="registre border rounded-md bg-card" role="table" aria-label={t("admin.subscription.invoices")}>
-              {invoices === null && (
+              {invoices === null && erreurInvoices && <EtatErreur compact onRetry={() => void loadInvoices()} />}
+              {invoices === null && !erreurInvoices && (
                 <>
                   <Skeleton className="h-12 w-full rounded-md" />
                   <Skeleton className="mt-2 h-12 w-full rounded-md" />
@@ -854,7 +852,8 @@ export function AdminView() {
           <SectionTitle>{t("admin.audit")}</SectionTitle>
           <p className="text-[11.5px] text-muted-foreground">{t("admin.audit.note")}</p>
           <div className="registre border rounded-md bg-card" role="table" aria-label={t("admin.audit")}>
-            {audit === null && (
+            {audit === null && erreurAudit && <EtatErreur compact onRetry={() => void loadAudit()} />}
+            {audit === null && !erreurAudit && (
               <>
                 <Skeleton className="h-11 w-full rounded-md" />
                 <Skeleton className="mt-2 h-11 w-full rounded-md" />
@@ -881,13 +880,13 @@ export function AdminView() {
               </div>
             ))}
           </div>
-          {audit && audit.total > 50 && (
+          {audit && audit.total > AUDIT_PAGE_SIZE && (
             <div className="flex items-center justify-between pt-1">
               <Button variant="outline" className="h-9 text-[12px]" disabled={auditPage <= 1} onClick={() => setAuditPage((p) => Math.max(1, p - 1))}>
                 {t("common.prev")}
               </Button>
               <span className="text-[11.5px] tnum text-muted-foreground">{fmt(t("admin.audit.page"), { page: audit.page, total: audit.total })}</span>
-              <Button variant="outline" className="h-9 text-[12px]" disabled={auditPage * 50 >= audit.total} onClick={() => setAuditPage((p) => p + 1)}>
+              <Button variant="outline" className="h-9 text-[12px]" disabled={auditPage * AUDIT_PAGE_SIZE >= audit.total} onClick={() => setAuditPage((p) => p + 1)}>
                 {t("common.next")}
               </Button>
             </div>
@@ -989,7 +988,8 @@ export function AdminView() {
             <SectionTitle>{t("admin.memory.title")}</SectionTitle>
             <p className="text-[12.5px] leading-relaxed text-muted-foreground">{t("admin.memory.description")}</p>
             <div className="registre border rounded-md bg-card max-h-96 overflow-y-auto thin-scroll" role="list" aria-label={t("admin.memory.title")}>
-              {memories === null && (
+              {memories === null && erreurMemories && <EtatErreur compact onRetry={() => void chargerMemoire()} />}
+              {memories === null && !erreurMemories && (
                 <>
                   <Skeleton className="h-12 w-full rounded-md" />
                   <Skeleton className="mt-2 h-12 w-full rounded-md" />
@@ -1114,7 +1114,8 @@ export function AdminView() {
               )}
 
               <div className="registre border rounded-md" role="list" aria-label={t("admin.whatsapp.title")}>
-                {pairings === null && (
+                {pairings === null && erreurPairings && <EtatErreur compact onRetry={() => void chargerAppairages()} />}
+                {pairings === null && !erreurPairings && (
                   <>
                     <Skeleton className="h-11 w-full rounded-md" />
                     <Skeleton className="mt-2 h-11 w-full rounded-md" />
@@ -1250,7 +1251,7 @@ export function AdminView() {
             <AlertDialogCancel className="h-11">{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="h-11"
-              style={{ background: "var(--erreur)", color: "white" }}
+              style={{ background: "var(--erreur)", color: "var(--papier-leve)" }}
               onClick={supprimerMemoire}
             >
               {t("admin.memory.remove")}

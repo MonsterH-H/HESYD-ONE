@@ -10,6 +10,8 @@ import { useI18n } from "@/lib/i18n";
 import { apiGet } from "@/hooks/use-api";
 import { toast } from "@/hooks/use-toast";
 import { useAppStore, refreshCredits } from "@/store/app";
+import { EtatErreur } from "@/components/app/etat-erreur";
+import { Pill } from "@/components/app/pill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, Mic, Plus, Square, FileText, Clock } from "lucide-react";
@@ -90,19 +92,6 @@ function CrossMark({ color }: { color: string }) {
   );
 }
 
-/** Pastille de statut : forme + libellé (jamais la couleur seule). */
-function Pill({ tone, shape = "dot", label }: { tone: "ruban" | "carton" | "erreur" | "encre"; shape?: "dot" | "ring" | "cross"; label: string }) {
-  const color = { ruban: "var(--ruban)", carton: "var(--carton)", erreur: "var(--erreur)", encre: "var(--encre-2)" }[tone];
-  return (
-    <span className="inline-flex items-center gap-1.5 text-[11.5px] font-medium whitespace-nowrap" style={{ color }}>
-      {shape === "dot" && <span className="h-2 w-2 rounded-full shrink-0" style={{ background: color }} aria-hidden="true" />}
-      {shape === "ring" && <span className="h-2 w-2 rounded-full border-2 shrink-0" style={{ borderColor: color }} aria-hidden="true" />}
-      {shape === "cross" && <CrossMark color={color} />}
-      <span>{label}</span>
-    </span>
-  );
-}
-
 function statutPill(statut: string, label: string) {
   switch (statut) {
     case "REUSSIE":
@@ -126,6 +115,7 @@ export function AssistantView() {
   const setView = useAppStore((s) => s.setView);
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [convErreur, setConvErreur] = useState(false);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [mission, setMission] = useState<Mission>(EMPTY_MISSION);
@@ -147,7 +137,12 @@ export function AssistantView() {
 
   const refreshConversations = async () => {
     const data = await apiGet<{ conversations: Conversation[] }>("/api/agent/chat");
-    if (data?.conversations) setConversations(data.conversations);
+    if (data?.conversations) {
+      setConversations(data.conversations);
+      setConvErreur(false);
+    } else {
+      setConvErreur(true);
+    }
   };
 
   useEffect(() => {
@@ -155,7 +150,12 @@ export function AssistantView() {
     (async () => {
       const data = await apiGet<{ conversations: Conversation[] }>("/api/agent/chat");
       if (!vivant) return;
-      if (data?.conversations) setConversations(data.conversations);
+      if (data?.conversations) {
+        setConversations(data.conversations);
+        setConvErreur(false);
+      } else {
+        setConvErreur(true);
+      }
     })();
     return () => {
       vivant = false;
@@ -434,7 +434,9 @@ export function AssistantView() {
           </Button>
         </div>
         <div className="registre max-h-28 overflow-y-auto scroll-fin border rounded-md bg-card" role="list" aria-label={t("assistant.conversations")}>
-          {conversations.length === 0 ? (
+          {conversations.length === 0 && convErreur ? (
+            <EtatErreur compact onRetry={() => void refreshConversations()} />
+          ) : conversations.length === 0 ? (
             <p className="text-[12px] text-muted-foreground px-3 py-2.5">{t("assistant.noConversation")}</p>
           ) : (
             conversations.map((c) => (

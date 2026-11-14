@@ -38,14 +38,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -248,7 +240,7 @@ export function FinancesView() {
   const [form, setForm] = useState(formCreationVide);
   const [envoi, setEnvoi] = useState(false);
 
-  // — Correction (Dialog + note obligatoire) —
+  // — Correction (Sheet + note obligatoire) —
   const [correction, setCorrection] = useState<OperationFinanciere | null>(null);
   const [formCorrection, setFormCorrection] = useState(formCorrectionVide);
 
@@ -711,173 +703,175 @@ export function FinancesView() {
       )}
 
       {/* ——— Détail réel : identité, source, confiance, historique chronologique ——— */}
-      <Dialog open={!!detail} onOpenChange={(v) => !v && setDetail(null)}>
-        <DialogContent className="scroll-fin max-h-[85vh] overflow-y-auto sm:max-w-[640px]">
+      <Sheet open={!!detail} onOpenChange={(v) => !v && setDetail(null)}>
+        <SheetContent side="right" className="sm:max-w-lg overflow-y-auto scroll-fin">
           {detail && (
             <>
-              <DialogHeader>
-                <DialogTitle className="pr-6 font-display text-[18px] leading-snug">{detail.label}</DialogTitle>
-                <DialogDescription className="flex flex-wrap items-center gap-2">
+              <SheetHeader>
+                <SheetTitle className="pr-6 font-display text-[18px] leading-snug">{detail.label}</SheetTitle>
+                <SheetDescription className="flex flex-wrap items-center gap-2">
                   <BadgeStatut status={detail.status} />
                   <span className="tnum">
                     {detail.amountCents != null ? formatMontant(detail.amountCents, detail.currency, locale) : "—"}
                   </span>
-                </DialogDescription>
-              </DialogHeader>
+                </SheetDescription>
+              </SheetHeader>
 
-              <dl className="space-y-2 text-[13px]">
-                <div className="flex justify-between gap-4">
-                  <dt className="shrink-0 text-muted-foreground">{t("finances.col.date")}</dt>
-                  <dd className="tnum text-right">
-                    {detail.operationDate ? new Date(detail.operationDate).toLocaleDateString() : "—"}
-                  </dd>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <dt className="shrink-0 text-muted-foreground">{t("finances.col.source")}</dt>
-                  <dd className="text-right">
-                    <LibelleSource sourceType={detail.sourceType} />
-                  </dd>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <dt className="shrink-0 text-muted-foreground">{t("finances.col.clientGroup")}</dt>
-                  <dd className="min-w-0 text-right">
-                    {detail.client?.name ?? "—"}
-                    {detail.group ? ` · ${detail.group.name}` : ""}
-                  </dd>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <dt className="shrink-0 text-muted-foreground">{t("finances.detail.confidence")}</dt>
-                  <dd className="tnum text-right">{Math.round(detail.confidence * 100)}%</dd>
-                </div>
-                {detail.needsReview && (
+              <div className="flex flex-1 flex-col gap-4 px-4">
+                <dl className="space-y-2 text-[13px]">
                   <div className="flex justify-between gap-4">
-                    <dt className="shrink-0 text-muted-foreground">{t("finances.detail.needsReview")}</dt>
-                    <dd>
-                      <Badge className="border-transparent" style={{ background: "var(--carton-fond)", color: "var(--carton)" }}>
-                        {t("finances.status.A_VERIFIER")}
-                      </Badge>
+                    <dt className="shrink-0 text-muted-foreground">{t("finances.col.date")}</dt>
+                    <dd className="tnum text-right">
+                      {detail.operationDate ? new Date(detail.operationDate).toLocaleDateString() : "—"}
                     </dd>
                   </div>
-                )}
-                {detail.validatedAt && (
                   <div className="flex justify-between gap-4">
-                    <dt className="shrink-0 text-muted-foreground">{t("finances.detail.validatedBy")}</dt>
-                    <dd className="tnum text-right">{new Date(detail.validatedAt).toLocaleString()}</dd>
+                    <dt className="shrink-0 text-muted-foreground">{t("finances.col.source")}</dt>
+                    <dd className="text-right">
+                      <LibelleSource sourceType={detail.sourceType} />
+                    </dd>
                   </div>
-                )}
-                {detail.rejectionReason && (
                   <div className="flex justify-between gap-4">
-                    <dt className="shrink-0 text-muted-foreground">{t("finances.detail.rejectedReason")}</dt>
-                    <dd className="min-w-0 text-right">{detail.rejectionReason}</dd>
+                    <dt className="shrink-0 text-muted-foreground">{t("finances.col.clientGroup")}</dt>
+                    <dd className="min-w-0 text-right">
+                      {detail.client?.name ?? "—"}
+                      {detail.group ? ` · ${detail.group.name}` : ""}
+                    </dd>
                   </div>
-                )}
-                <div className="flex justify-between gap-4">
-                  <dt className="shrink-0 text-muted-foreground">{t("finances.detail.createdBy")}</dt>
-                  <dd className="tnum text-right">{new Date(detail.createdAt).toLocaleString()}</dd>
-                </div>
-              </dl>
+                  <div className="flex justify-between gap-4">
+                    <dt className="shrink-0 text-muted-foreground">{t("finances.detail.confidence")}</dt>
+                    <dd className="tnum text-right">{Math.round(detail.confidence * 100)}%</dd>
+                  </div>
+                  {detail.needsReview && (
+                    <div className="flex justify-between gap-4">
+                      <dt className="shrink-0 text-muted-foreground">{t("finances.detail.needsReview")}</dt>
+                      <dd>
+                        <Badge className="border-transparent" style={{ background: "var(--carton-fond)", color: "var(--carton)" }}>
+                          {t("finances.status.A_VERIFIER")}
+                        </Badge>
+                      </dd>
+                    </div>
+                  )}
+                  {detail.validatedAt && (
+                    <div className="flex justify-between gap-4">
+                      <dt className="shrink-0 text-muted-foreground">{t("finances.detail.validatedBy")}</dt>
+                      <dd className="tnum text-right">{new Date(detail.validatedAt).toLocaleString()}</dd>
+                    </div>
+                  )}
+                  {detail.rejectionReason && (
+                    <div className="flex justify-between gap-4">
+                      <dt className="shrink-0 text-muted-foreground">{t("finances.detail.rejectedReason")}</dt>
+                      <dd className="min-w-0 text-right">{detail.rejectionReason}</dd>
+                    </div>
+                  )}
+                  <div className="flex justify-between gap-4">
+                    <dt className="shrink-0 text-muted-foreground">{t("finances.detail.createdBy")}</dt>
+                    <dd className="tnum text-right">{new Date(detail.createdAt).toLocaleString()}</dd>
+                  </div>
+                </dl>
 
-              {/* Traçabilité réelle vers l'événement source (identifiants bruts, jamais inventés) */}
-              {(detail.sourceFileId || detail.sourceReceptionId || detail.sourceWebhookEventId || detail.sourceKey) && (
-                <div className="rounded-md border border-[var(--bordure)] bg-[var(--papier-creuse)] p-3">
-                  <p className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">{t("finances.detail.sourceTrace")}</p>
-                  <ul className="mt-1.5 space-y-1 text-[12px] tnum">
-                    {detail.sourceFileId && (
-                      <li className="flex flex-wrap justify-between gap-x-3">
-                        <span className="text-muted-foreground">{t("finances.detail.sourceFile")}</span>
-                        <span className="min-w-0 break-all text-right">{detail.sourceFileId}</span>
-                      </li>
-                    )}
-                    {detail.sourceReceptionId && (
-                      <li className="flex flex-wrap justify-between gap-x-3">
-                        <span className="text-muted-foreground">{t("finances.detail.sourceReception")}</span>
-                        <span className="min-w-0 break-all text-right">{detail.sourceReceptionId}</span>
-                      </li>
-                    )}
-                    {detail.sourceWebhookEventId && (
-                      <li className="flex flex-wrap justify-between gap-x-3">
-                        <span className="text-muted-foreground">{t("finances.detail.sourceWebhook")}</span>
-                        <span className="min-w-0 break-all text-right">{detail.sourceWebhookEventId}</span>
-                      </li>
-                    )}
-                    <li className="flex flex-wrap justify-between gap-x-3">
-                      <span className="text-muted-foreground">{t("finances.detail.sourceKey")}</span>
-                      <span className="min-w-0 break-all text-right">{detail.sourceKey}</span>
-                    </li>
-                  </ul>
-                </div>
-              )}
-
-              {/* Historique chronologique — corrections montrées avant/après, jamais d'effacement */}
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">{t("finances.detail.history")}</p>
-                {historiqueParses(detail.historyJson).length === 0 ? (
-                  <p className="mt-2 text-[12.5px] text-muted-foreground">{t("finances.detail.historyEmpty")}</p>
-                ) : (
-                  <ul className="mt-2 border-t border-[var(--bordure)]">
-                    {historiqueParses(detail.historyJson).map((h, i) => {
-                      const deviseEntree =
-                        typeof h.to?.currency === "string"
-                          ? h.to.currency
-                          : typeof h.from?.currency === "string"
-                            ? h.from.currency
-                            : detail.currency;
-                      return (
-                        <li key={i} className="border-b border-[var(--bordure)] py-2.5">
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                            <span className="text-[12.5px] font-medium">{t(`finances.history.${h.action}`, h.action)}</span>
-                            {h.action !== "CORRECTION" && typeof h.from?.status === "string" && typeof h.to?.status === "string" && (
-                              <span className="text-[12px] tnum text-muted-foreground">
-                                {t(`finances.status.${h.from.status}`, h.from.status)} →{" "}
-                                {t(`finances.status.${h.to.status}`, h.to.status)}
-                              </span>
-                            )}
-                            <time className="ml-auto text-[11px] tnum text-muted-foreground">
-                              {h.at ? new Date(h.at).toLocaleString() : "—"}
-                            </time>
-                          </div>
-                          {h.action === "CORRECTION" && h.from && h.to && (
-                            <ul className="mt-1.5 space-y-1 rounded-md border border-[var(--bordure)] bg-[var(--papier-creuse)] p-2">
-                              {CHAMPS_CORRECTION.filter((champ) => valeurChamp(h.from, champ) !== valeurChamp(h.to, champ)).map((champ) => {
-                                const affiche = (entree: Record<string, unknown> | null): string => {
-                                  const brut = valeurChamp(entree, champ);
-                                  if (!brut) return "—";
-                                  if (champ === "amountCents") {
-                                    const n = Number(brut);
-                                    return Number.isFinite(n) ? formatMontant(n, deviseEntree, locale) : brut;
-                                  }
-                                  if (champ === "operationDate") return new Date(brut).toLocaleDateString();
-                                  if (champ === "status") return t(`finances.status.${brut}`, brut);
-                                  return brut;
-                                };
-                                return (
-                                  <li key={champ} className="flex flex-wrap items-baseline gap-x-2 text-[12px]">
-                                    <span className="text-muted-foreground">{t(`finances.field.${champ}`)}</span>
-                                    <span className="tnum line-through decoration-[var(--bordure-forte)]">{affiche(h.from)}</span>
-                                    <span aria-hidden="true">→</span>
-                                    <span className="tnum font-medium">{affiche(h.to)}</span>
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          )}
-                          {h.note && <p className="mt-1 text-[12px] text-muted-foreground">{h.note}</p>}
+                {/* Traçabilité réelle vers l'événement source (identifiants bruts, jamais inventés) */}
+                {(detail.sourceFileId || detail.sourceReceptionId || detail.sourceWebhookEventId || detail.sourceKey) && (
+                  <div className="rounded-md border border-[var(--bordure)] bg-[var(--papier-creuse)] p-3">
+                    <p className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">{t("finances.detail.sourceTrace")}</p>
+                    <ul className="mt-1.5 space-y-1 text-[12px] tnum">
+                      {detail.sourceFileId && (
+                        <li className="flex flex-wrap justify-between gap-x-3">
+                          <span className="text-muted-foreground">{t("finances.detail.sourceFile")}</span>
+                          <span className="min-w-0 break-all text-right">{detail.sourceFileId}</span>
                         </li>
-                      );
-                    })}
-                  </ul>
+                      )}
+                      {detail.sourceReceptionId && (
+                        <li className="flex flex-wrap justify-between gap-x-3">
+                          <span className="text-muted-foreground">{t("finances.detail.sourceReception")}</span>
+                          <span className="min-w-0 break-all text-right">{detail.sourceReceptionId}</span>
+                        </li>
+                      )}
+                      {detail.sourceWebhookEventId && (
+                        <li className="flex flex-wrap justify-between gap-x-3">
+                          <span className="text-muted-foreground">{t("finances.detail.sourceWebhook")}</span>
+                          <span className="min-w-0 break-all text-right">{detail.sourceWebhookEventId}</span>
+                        </li>
+                      )}
+                      <li className="flex flex-wrap justify-between gap-x-3">
+                        <span className="text-muted-foreground">{t("finances.detail.sourceKey")}</span>
+                        <span className="min-w-0 break-all text-right">{detail.sourceKey}</span>
+                      </li>
+                    </ul>
+                  </div>
                 )}
+
+                {/* Historique chronologique — corrections montrées avant/après, jamais d'effacement */}
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">{t("finances.detail.history")}</p>
+                  {historiqueParses(detail.historyJson).length === 0 ? (
+                    <p className="mt-2 text-[12.5px] text-muted-foreground">{t("finances.detail.historyEmpty")}</p>
+                  ) : (
+                    <ul className="mt-2 border-t border-[var(--bordure)]">
+                      {historiqueParses(detail.historyJson).map((h, i) => {
+                        const deviseEntree =
+                          typeof h.to?.currency === "string"
+                            ? h.to.currency
+                            : typeof h.from?.currency === "string"
+                              ? h.from.currency
+                              : detail.currency;
+                        return (
+                          <li key={i} className="border-b border-[var(--bordure)] py-2.5">
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                              <span className="text-[12.5px] font-medium">{t(`finances.history.${h.action}`, h.action)}</span>
+                              {h.action !== "CORRECTION" && typeof h.from?.status === "string" && typeof h.to?.status === "string" && (
+                                <span className="text-[12px] tnum text-muted-foreground">
+                                  {t(`finances.status.${h.from.status}`, h.from.status)} →{" "}
+                                  {t(`finances.status.${h.to.status}`, h.to.status)}
+                                </span>
+                              )}
+                              <time className="ml-auto text-[11px] tnum text-muted-foreground">
+                                {h.at ? new Date(h.at).toLocaleString() : "—"}
+                              </time>
+                            </div>
+                            {h.action === "CORRECTION" && h.from && h.to && (
+                              <ul className="mt-1.5 space-y-1 rounded-md border border-[var(--bordure)] bg-[var(--papier-creuse)] p-2">
+                                {CHAMPS_CORRECTION.filter((champ) => valeurChamp(h.from, champ) !== valeurChamp(h.to, champ)).map((champ) => {
+                                  const affiche = (entree: Record<string, unknown> | null): string => {
+                                    const brut = valeurChamp(entree, champ);
+                                    if (!brut) return "—";
+                                    if (champ === "amountCents") {
+                                      const n = Number(brut);
+                                      return Number.isFinite(n) ? formatMontant(n, deviseEntree, locale) : brut;
+                                    }
+                                    if (champ === "operationDate") return new Date(brut).toLocaleDateString();
+                                    if (champ === "status") return t(`finances.status.${brut}`, brut);
+                                    return brut;
+                                  };
+                                  return (
+                                    <li key={champ} className="flex flex-wrap items-baseline gap-x-2 text-[12px]">
+                                      <span className="text-muted-foreground">{t(`finances.field.${champ}`)}</span>
+                                      <span className="tnum line-through decoration-[var(--bordure-forte)]">{affiche(h.from)}</span>
+                                      <span aria-hidden="true">→</span>
+                                      <span className="tnum font-medium">{affiche(h.to)}</span>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            )}
+                            {h.note && <p className="mt-1 text-[12px] text-muted-foreground">{h.note}</p>}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
               </div>
 
-              <DialogFooter>
+              <SheetFooter>
                 <Button variant="outline" className="h-11" onClick={() => setDetail(null)}>
                   {t("common.close")}
                 </Button>
-              </DialogFooter>
+              </SheetFooter>
             </>
           )}
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
 
       {/* ——— Création manuelle ——— */}
       <Sheet open={creationOpen} onOpenChange={fermerCreation}>
@@ -1017,7 +1011,7 @@ export function FinancesView() {
       </Sheet>
 
       {/* ——— Correction réelle — note consignée dans l'historique ——— */}
-      <Dialog
+      <Sheet
         open={!!correction}
         onOpenChange={(v) => {
           if (!v) {
@@ -1026,14 +1020,14 @@ export function FinancesView() {
           }
         }}
       >
-        <DialogContent className="sm:max-w-[460px]">
+        <SheetContent side="right" className="sm:max-w-lg overflow-y-auto scroll-fin">
           {correction && (
             <>
-              <DialogHeader>
-                <DialogTitle className="font-display text-[18px]">{t("finances.actions.correct")}</DialogTitle>
-                <DialogDescription className="truncate">{correction.label}</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-3">
+              <SheetHeader>
+                <SheetTitle className="font-display text-[18px]">{t("finances.actions.correct")}</SheetTitle>
+                <SheetDescription className="truncate">{correction.label}</SheetDescription>
+              </SheetHeader>
+              <div className="flex-1 space-y-3 px-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="fin-corr-label">{t("finances.form.label")}</Label>
                   <Input
@@ -1090,7 +1084,7 @@ export function FinancesView() {
                   <p className="text-[11.5px] text-muted-foreground">{t("finances.form.correctionNote")}</p>
                 )}
               </div>
-              <DialogFooter className="flex-row justify-between sm:justify-between">
+              <SheetFooter className="mt-auto flex-row justify-between">
                 <Button
                   type="button"
                   variant="ghost"
@@ -1105,11 +1099,11 @@ export function FinancesView() {
                 <Button className="h-11" disabled={envoi || !formCorrection.note.trim() || !correctionChangee} onClick={corriger}>
                   {t("common.save")}
                 </Button>
-              </DialogFooter>
+              </SheetFooter>
             </>
           )}
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
 
       {/* ——— Validation humaine (ADMIN+) ——— */}
       <AlertDialog open={!!aValider} onOpenChange={(v) => !v && setAValider(null)}>

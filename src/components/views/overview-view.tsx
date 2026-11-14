@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAppStore } from "@/store/app";
 import { useI18n } from "@/lib/i18n";
 import { apiGet } from "@/hooks/use-api";
@@ -52,19 +52,18 @@ export function OverviewView() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [chargement, setChargement] = useState(true);
 
-  // Bordereau réel — chargé une fois, rappelé depuis les handlers si besoin
-  useEffect(() => {
-    let vivant = true;
-    (async () => {
-      const d = await apiGet<DashboardData>("/api/dashboard");
-      if (!vivant) return;
-      if (d) setData(d);
-      setChargement(false);
-    })();
-    return () => {
-      vivant = false;
-    };
+  // Bordereau réel — un seul chargeur, partagé par l'effet et la reprise après erreur
+  const charger = useCallback(async () => {
+    const d = await apiGet<DashboardData>("/api/dashboard");
+    if (d) setData(d);
+    setChargement(false);
   }, []);
+
+  useEffect(() => {
+    void (async () => {
+      await charger();
+    })();
+  }, [charger]);
 
   const ouvrirFichier = (id: string) => {
     setDetailFileId(id);
@@ -91,7 +90,7 @@ export function OverviewView() {
           {t("common.errorLoadDashboard")}
         </p>
         <div className="mt-4 flex justify-end">
-          <Button onClick={() => { setChargement(true); window.location.reload(); }}>{t("common.retry")}</Button>
+          <Button onClick={() => { setChargement(true); void charger(); }}>{t("common.retry")}</Button>
         </div>
       </div>
     );

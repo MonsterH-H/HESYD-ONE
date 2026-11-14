@@ -21,12 +21,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Search, SlidersHorizontal } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -569,18 +570,19 @@ export function PlatformView() {
         </>
       )}
 
-      {/* Geste commercial — dialogue paramétré par l'action choisie */}
-      <Dialog open={!!geste && geste.action !== "PURGER"} onOpenChange={(v) => !v && fermerGeste()}>
-        <DialogContent className="sm:max-w-[480px]">
-          <DialogHeader>
-            <DialogTitle className="font-display text-[17px]">{t("platform.geste.title")}</DialogTitle>
-            <DialogDescription className="text-[12.5px]">
+      {/* Geste commercial — panneau latéral paramétré par l'action choisie */}
+      <Sheet open={!!geste && geste.action !== "PURGER"} onOpenChange={(v) => !v && fermerGeste()}>
+        <SheetContent side="right" className="sm:max-w-lg overflow-y-auto scroll-fin">
+          <SheetHeader>
+            <SheetTitle className="font-display text-[17px]">{t("platform.geste.title")}</SheetTitle>
+            <SheetDescription className="text-[12.5px]">
               {geste ? fmt(t("platform.geste.description"), { name: geste.org.name }) : ""}
-            </DialogDescription>
-          </DialogHeader>
+            </SheetDescription>
+          </SheetHeader>
 
           {geste && (
-            <div className="grid gap-4">
+            <>
+            <div className="grid flex-1 gap-4 px-4">
               <div className="rounded-md border px-3 py-2.5 flex items-center justify-between gap-3" style={{ background: "var(--papier-leve)", borderColor: "var(--bordure)" }}>
                 <span className="text-[13.5px] font-medium truncate">{geste.org.name}</span>
                 <StatutOrg status={geste.org.status} />
@@ -658,29 +660,30 @@ export function PlatformView() {
                   />
                 </div>
               )}
-
-              <div className="flex items-center gap-2 pt-1">
-                <Button type="button" variant="outline" className="h-11 flex-1" onClick={fermerGeste}>
-                  {t("common.cancel")}
-                </Button>
-                <Button
-                  type="button"
-                  className="h-11 flex-1"
-                  disabled={gesteBusy || !champValide()}
-                  style={
-                    geste.action === "RESILIER"
-                      ? { background: "var(--erreur)", color: "white" }
-                      : undefined
-                  }
-                  onClick={() => void appliquerGeste()}
-                >
-                  {gesteBusy ? t("common.loading") : t("platform.geste.confirm")}
-                </Button>
-              </div>
             </div>
+
+            <SheetFooter className="flex-row gap-2">
+              <Button type="button" variant="outline" className="h-11 flex-1" onClick={fermerGeste}>
+                {t("common.cancel")}
+              </Button>
+              <Button
+                type="button"
+                className="h-11 flex-1 text-primary-foreground"
+                disabled={gesteBusy || !champValide()}
+                style={
+                  geste.action === "RESILIER"
+                    ? { background: "var(--erreur)" }
+                    : undefined
+                }
+                onClick={() => void appliquerGeste()}
+              >
+                {gesteBusy ? t("common.loading") : t("platform.geste.confirm")}
+              </Button>
+            </SheetFooter>
+            </>
           )}
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
 
       {/* Purge — AlertDialog rouge, double confirmation par saisie du nom exact */}
       <AlertDialog open={!!geste && geste.action === "PURGER"} onOpenChange={(v) => !v && fermerGeste()}>
@@ -730,8 +733,8 @@ export function PlatformView() {
               </AlertDialogAction>
             ) : (
               <AlertDialogAction
-                className="h-11"
-                style={{ background: "var(--erreur)", color: "white" }}
+                className="h-11 text-primary-foreground"
+                style={{ background: "var(--erreur)" }}
                 disabled={!geste || purgeName.trim() !== geste.org.name || gesteBusy}
                 onClick={(e) => {
                   e.preventDefault();

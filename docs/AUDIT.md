@@ -505,3 +505,60 @@ E1–E8 (identifiants externes), build VPS (E7 — interdit dans cette sandbox),
 - `.env`, `.zscripts/`, `.initial_snapshot.json` **retirés du tracking** et ignorés (le `.env` committé ne contenait que `DATABASE_URL` local — aucun secret ; corrigé par précaution).
 - `.gitignore` réorganisé : secrets en tête, métadonnées sandbox, données réelles locales.
 - Pousse vers GitHub avec un token d'accès **jamais écrit dans le dépôt** ; rotation du token recommandée après usage.
+
+---
+
+## 15. Session refonte complète + finalisation (14/11/2026, après-midi)
+
+**Objectif utilisateur :** installer 4 skills demandés, finaliser l'application, l'améliorer et mener une refonte complète. Méthode : audit parallèle par 3 agents (UI, sécurité backend, conformité design) puis corrections par 4 agents parallèles sur domaines indépendants, conformément au skill `dispatching-parallel-agents`.
+
+### 15.1 Correctifs issus de l'audit (preuves)
+
+| Priorité | Constat | Correctif | Preuve |
+|---|---|---|---|
+| **CRITIQUE** | `src/app/api/files/upload/route.ts` supprimé du working tree mais encore appelé par `files-view.tsx:281` → 404 sur tout dépôt web (régression non commitée post-datant l'audit 16/16) | Route restaurée depuis git (`git checkout --`) | Dépôt PDF réel via navigateur → **archivage confirmé** (voir 15.3) |
+| HAUT | 2 violations a11y : `span[role=button]` imbriqué dans `<button>` (deliverables, automations) | Restructurés en boutons frères avec stopPropagation | HTML valide, navigation clavier préservée |
+| HAUT | 5 Dialogs centraux contrevenaient au système de design (détail finances, correction finances, génération livrables, geste plateforme, + auth oubli conservé) | Convertis en Sheets latérales | Navigateur : détail + création opération en Sheet fonctionnels |
+| HAUT | États d'erreur manquants : `apiGet` null → squelettes infinis (files, inbox, clients, groups, 5 onglets admin, assistant) | Composant partagé `EtatErreur` (retry réel) branché sur 10+ points | Code + lint vert |
+| MOYEN | Flash d'état vide au premier chargement (deliverables, approvals, automations, imports) | Drapeau `loaded` + squelettes | Code |
+| MOYEN | Progrès d'upload simulé par `setInterval(1400ms)` (fausse progression — interdite) | Supprimé → état honnête « Dépôt en cours… » sans étapes fabriquées | Capture navigateur pendant dépôt réel |
+| MOYEN | Pas de rate limit sur les routes IA coûteuses | `AGENT_CHAT` 40/5 min, `VOICE_TRANSCRIBE` 12/5 min, `DELIVERABLES_POST` 20/15 min (clés `{orgId}:{userId}`, 429 avec `retryAfterSeconds`) | Code, même contrat que register |
+| MOYEN | Commentaire obsolète `rate-limit.ts` (`WEBHOOK:{provider}` inexistant) | Corrigé : documente la réalité (webhooks = signature + idempotence fournisseur, pas de fenêtre) | Code |
+| MOYEN | Fuite i18n ×3 (`réception …`, aria-label « Sections », libellés catégories) + select natif inbox | `t()` partout + shadcn Select (`inbox.reception_prefix`, `nav.sections` ajoutés fr/en) | Code |
+| MOYEN | `Pill` copiée-collée dans 5 vues | Extraite vers `src/components/app/pill.tsx`, 5 imports | Code |
+| BAS | Code mort (app-shell `itemActif`/`navKey`, inbox `correctOpenFileId`), `color:"white"` en dur ×3, retry par `location.reload()`, magie `50` | Supprimés/tokenisés/extrait (`AUDIT_PAGE_SIZE`) | Code |
+
+### 15.2 Refonte design system (fondations)
+
+- `globals.css` réécrit : **tous les tokens exposés en utilities Tailwind** (`bg-papier`, `text-encre-2`, `bg-cachet`, `border-bordure`, `bg-voile`, `text-erreur`…) via `@theme inline` — fin des ~198 usages arbitraires `bg-[var(--…)]` dans les fichiers refondus ;
+- **Échelle typographique du registre** tokenisée (`text-meta` 13 · `text-corps` 16 · `text-section` 20 · `text-titre` 25 · `text-page` 31 · `text-hero` 39) ;
+- **Courbes de mouvement** : `ease-out`/`ease-in-out` Tailwind redirigés vers les courbes du système (`cubic-bezier(0.25,1,0.5,1)` — extension du token, pas de fork, conformément au skill `animate`), ajout `ease-drawer` iOS-like pour les Sheets ; durées tokenisées (`--duree-retour/etat/mise-en-page/cachet`) ;
+- `--rayon` + `--destructive-foreground` (clair et sombre) définis — corrige le contraste cassé des toasts destructifs en thème clair ;
+- **Cibles tactiles ≥ 44px** sur `pointer: coarse` (rule globale) + bases boutons/inputs passées à 40px ;
+- `prefers-reduced-motion` complété (`animation-iteration-count`, délais, scroll-behavior) ;
+- `tailwind.config.ts` mort (wrappers `hsl(oklch)` invalides, jamais chargé en v4) **supprimé** ;
+- Primitives shadcn alignées : `transition-all` ×8 → propriétés nommées, `bg-black/50` ×4 → `bg-voile`, `text-white` ×2 → `text-primary-foreground`, `red-*` toast → tokens erreur, Sheet 500ms → 300ms `ease-drawer` ;
+- Entrée de vue sobre (`vue-entree` 220ms opacité+6px, transform+opacity uniquement) au changement de vue via `key` sur `<main>`.
+
+### 15.3 Refonte landing + métadonnées sociales
+
+- Landing tokenisée (utilities + échelle typo), révélation 500→400ms, corps 15,5→16px conformes au spec ;
+- **Image OG native** `src/app/opengraph-image.tsx` (1200×630, ImageResponse) : polices Fraunces 600 / Instrument Sans 400 **instanciées en TTF statique** depuis @fontsource-variable (fontTools, OFL) vers `public/fonts/` — satori refuse les woff2 variables ; `<text>` SVG remplacé par des rects ; rendu vérifié : `GET /opengraph-image 200` PNG 61 Ko on-brand ;
+- `layout.tsx` : `metadataBase` (env `PUBLIC_BASE_URL`/`APP_URL`), template de titre, OpenGraph (fr_FR), Twitter card, robots.
+
+### 15.4 Correctif UX découvert en vérification navigateur
+
+- **Le wizard « Mise en service » se rouvrait** après toute actualisation de session tant que l'onboarding était incomplet (dépendance d'effet à l'identité de `session`). Garde ajoutée : après fermeture explicite, il ne se rouvre plus avant rechargement de page. Vérifié en direct.
+
+### 15.5 Vérifications d'exécution de la session (preuves navigateur réelles)
+
+- `npx tsc --noEmit` : **0 erreur** · `bun run lint` : **0 erreur, 0 warning**.
+- Parcours exécutés via agent-browser : inscription réelle (org « Registre Test ») → wizard → clients (client « Général » du provisioning, pill Actif) → **dépôt PDF réel** → état honnête « Dépôt en cours… » → **ARCHIVÉ avec preuve** (`fs.stat confirmé · 921 octets · sha256 re-vérifié après écriture`, chemin Client/Groupe/Catégorie/Année/Mois) → fiche détail : chaîne de garde Reçu→Classé→Archivé→Indexé horodatée, champs extraits (référence/montant/date, confiance 100 %) → **opération financière extraite automatiquement** (1 250,00 € « Extraite », jamais auto-confirmée) → création manuelle en Sheet → « À vérifier » → console opérateur : intégrations honnêtes « Identifiants requis » + variables exactes listées → mobile 390 px (nav scrollable, bordereau adapté) → thème sombre « encre » cohérent.
+- Refus MIME honnête vérifié : `.txt` → `mime_refuse:application/octet-stream` (validation serveur réelle, toast clair).
+- Crédits réels décomptés : 500 → 498 après traitement du document.
+- Image OG : 200, PNG 1200×630.
+- Journal serveur : aucune erreur runtime après corrections.
+
+### 15.6 État global inchangé
+
+Les statuts d'intégration du §14 restent inchangés : aucune donnée externe nouvelle n'a été fournie ; rien ne passe de « non configuré » à « connecté » sans preuve réelle. La refonte est strictement UI/UX + durcissement + correctifs — l'architecture et les décisions techniques verrouillées n'ont pas été modifiées.

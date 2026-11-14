@@ -1,14 +1,27 @@
 import { requireAuth } from "@/lib/auth";
 import { handle } from "@/lib/api";
+import { consumeRateLimitWindow } from "@/lib/rate-limit";
 import { transcribeAudioBuffer } from "@/lib/pipeline/parse";
 import { meterUsage, consumeCredits, creditsAvailable, CREDIT_COST } from "@/lib/quota";
 
 export const maxDuration = 120;
 
+const TRANSCRIBE_LIMIT = 12;
+const TRANSCRIBE_WINDOW_MS = 5 * 60 * 1000;
+
 /** Transcription réelle ASR : le message vocal devient une instruction vérifiable. */
 export async function POST(req: Request) {
   return handle(async () => {
     const auth = await requireAuth();
+    // Anti-abus persisté : 12 transcriptions / 5 min par organisation+utilisateur (audit P3)
+    const rl = await consumeRateLimitWindow(
+      `VOICE_TRANSCRIBE:${auth.organization.id}:${auth.user.id}`,
+      TRANSCRIBE_LIMIT,
+      TRANSCRIBE_WINDOW_MS
+    );
+    if (!rl.allowed) {
+      return Response.json({ error: "trop_de_tentatives", retryAfterSeconds: rl.retryAfterSeconds }, { status: 429 });
+    }
     if (!(await creditsAvailable(auth.organization.id, CREDIT_COST.TRANSCRIPTION))) {
       throw new Error("credits_insuffisants_transcription_en_attente");
     }

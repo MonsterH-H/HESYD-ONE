@@ -148,6 +148,7 @@ export const en: Record<string, string> = {
   "files.upload.toGroup": "Group (optional)",
   "files.upload.caption": "Caption / note (optional)",
   "files.upload.submit": "Upload and archive",
+  "files.depot_en_cours": "Uploading…",
   "files.upload.progress": "Recording the reception…",
   "files.upload.parse": "Real content reading…",
   "files.upload.classify": "Classification and extraction…",
@@ -189,6 +190,7 @@ export const en: Record<string, string> = {
   "inbox.retry": "Retry processing",
   "inbox.corrected": "Correction saved and archiving confirmed",
   "inbox.empty": "Nothing to handle. The register is clean.",
+  "inbox.reception_prefix": "Reception",
 
   // Assistant
   "assistant.title": "Document assistant",
@@ -437,6 +439,8 @@ export const en: Record<string, string> = {
   "api.trop_de_tentatives": "Too many attempts: try again later.",
   "api.credits_insuffisants": "Insufficient credits: the action is queued, no data is lost.",
   "common.retry": "Retry",
+  "common.erreur_chargement": "Unable to load",
+  "common.erreur_chargement_detail": "The list could not be retrieved. No data is lost.",
   "common.errorLoadDashboard": "Unable to load the dashboard: check your connection and try again. No data is lost.",
   "common.credits": "credits",
   "common.results": "result(s)",

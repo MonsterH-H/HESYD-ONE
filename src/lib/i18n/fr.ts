@@ -149,6 +149,7 @@ export const fr: Record<string, string> = {
   "files.upload.toGroup": "Groupe (optionnel)",
   "files.upload.caption": "Légende / note (optionnel)",
   "files.upload.submit": "Déposer et archiver",
+  "files.depot_en_cours": "Dépôt en cours…",
   "files.upload.progress": "Enregistrement de la réception…",
   "files.upload.parse": "Lecture réelle du contenu…",
   "files.upload.classify": "Classification et extraction…",
@@ -190,6 +191,7 @@ export const fr: Record<string, string> = {
   "inbox.retry": "Relancer le traitement",
   "inbox.corrected": "Correction enregistrée et archivage confirmé",
   "inbox.empty": "Rien à traiter. Le registre est propre.",
+  "inbox.reception_prefix": "Réception",
 
   // Assistant
   "assistant.title": "Assistant documentaire",
@@ -438,6 +440,8 @@ export const fr: Record<string, string> = {
   "api.trop_de_tentatives": "Trop de tentatives : réessayez plus tard.",
   "api.credits_insuffisants": "Crédits insuffisants : l'action est mise en attente, aucune donnée n'est perdue.",
   "common.retry": "Réessayer",
+  "common.erreur_chargement": "Chargement impossible",
+  "common.erreur_chargement_detail": "La liste n'a pas pu être récupérée. Aucune donnée n'est perdue.",
   "common.errorLoadDashboard": "Impossible de charger le tableau de bord : vérifiez votre connexion puis réessayez. Aucune donnée n'est perdue.",
   "common.credits": "crédits",
   "common.results": "résultat(s)",

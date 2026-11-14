@@ -2,12 +2,16 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import { handle, readJson } from "@/lib/api";
+import { consumeRateLimitWindow } from "@/lib/rate-limit";
 import { runAgentTask, type AgentEvent } from "@/lib/agent/runner";
 
 const bodySchema = z.object({
   message: z.string().min(1).max(4000),
   conversationId: z.string().optional(),
 });
+
+const CHAT_LIMIT = 40;
+const CHAT_WINDOW_MS = 5 * 60 * 1000;
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -16,6 +20,15 @@ export const maxDuration = 120;
 export async function POST(req: Request) {
   return handle(async () => {
     const auth = await requireAuth();
+    // Anti-abus persisté : 40 messages / 5 min par organisation+utilisateur (audit P3)
+    const rl = await consumeRateLimitWindow(
+      `AGENT_CHAT:${auth.organization.id}:${auth.user.id}`,
+      CHAT_LIMIT,
+      CHAT_WINDOW_MS
+    );
+    if (!rl.allowed) {
+      return Response.json({ error: "trop_de_tentatives", retryAfterSeconds: rl.retryAfterSeconds }, { status: 429 });
+    }
     const parsed = bodySchema.safeParse(await readJson<unknown>(req));
     if (!parsed.success) throw new Error("message_invalide");
 

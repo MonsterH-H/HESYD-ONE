@@ -9,6 +9,8 @@ import { useI18n } from "@/lib/i18n";
 import { useApi, apiGet } from "@/hooks/use-api";
 import { useAppStore } from "@/store/app";
 import { toast } from "@/hooks/use-toast";
+import { EtatErreur } from "@/components/app/etat-erreur";
+import { Pill } from "@/components/app/pill";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ChevronDown } from "lucide-react";
@@ -40,24 +42,6 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
     <h3 className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
       {children}
     </h3>
-  );
-}
-
-/** Pastille : forme + libellé, jamais la couleur seule. */
-function Pill({ tone, shape = "dot", label }: { tone: "ruban" | "carton" | "erreur" | "cachet" | "encre"; shape?: "dot" | "ring" | "cross"; label: string }) {
-  const color = { ruban: "var(--ruban)", carton: "var(--carton)", erreur: "var(--erreur)", cachet: "var(--cachet)", encre: "var(--encre-2)" }[tone];
-  return (
-    <span className="inline-flex items-center gap-1.5 text-[11.5px] font-medium whitespace-nowrap" style={{ color }}>
-      {shape === "dot" && <span className="h-2 w-2 rounded-full shrink-0" style={{ background: color }} aria-hidden="true" />}
-      {shape === "ring" && <span className="h-2 w-2 rounded-full border-2 shrink-0" style={{ borderColor: color }} aria-hidden="true" />}
-      {shape === "cross" && (
-        <span className="relative h-2 w-2 shrink-0" aria-hidden="true">
-          <span className="absolute inset-x-0 top-1/2 h-[2px] -translate-y-1/2" style={{ background: color }} />
-          <span className="absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2" style={{ background: color }} />
-        </span>
-      )}
-      <span>{label}</span>
-    </span>
   );
 }
 
@@ -95,13 +79,18 @@ export function ApprovalsView() {
   // les décisions sont masquées pour EMPLOYE/LECTEUR (audit UI P2).
   const peutDecider = role === "PROPRIETAIRE" || role === "ADMINISTRATEUR";
 
-  const [approvals, setApprovals] = useState<Approval[]>([]);
+  const [approvals, setApprovals] = useState<Approval[] | null>(null);
+  const [erreur, setErreur] = useState(false);
   const [selected, setSelected] = useState<Approval | null>(null);
   const [deciding, setDeciding] = useState(false);
 
   const load = async () => {
     const data = await apiGet<{ approvals: Approval[] }>("/api/approvals");
-    if (!data?.approvals) return;
+    if (!data?.approvals) {
+      setErreur(true);
+      return;
+    }
+    setErreur(false);
     setApprovals(data.approvals);
     // le Sheet suit l'état réel : si la décision est passée, il se referme
     setSelected((cur) => (cur ? data.approvals.find((a) => a.id === cur.id) ?? null : null));
@@ -111,7 +100,12 @@ export function ApprovalsView() {
     let vivant = true;
     (async () => {
       const data = await apiGet<{ approvals: Approval[] }>("/api/approvals");
-      if (!vivant || !data?.approvals) return;
+      if (!vivant) return;
+      if (!data?.approvals) {
+        setErreur(true);
+        return;
+      }
+      setErreur(false);
       setApprovals(data.approvals);
     })();
     return () => {
@@ -141,7 +135,20 @@ export function ApprovalsView() {
   return (
     <div className="space-y-4 max-w-[1100px]">
       <div className="registre border rounded-md bg-card" role="list" aria-label={t("approvals.title")}>
-        {approvals.length === 0 ? (
+        {approvals === null && erreur ? (
+          <EtatErreur
+            onRetry={() => {
+              setErreur(false);
+              void load();
+            }}
+          />
+        ) : approvals === null ? (
+          <>
+            <div className="h-[52px] border-b border-[var(--bordure)] animate-pulse" aria-hidden="true" />
+            <div className="h-[52px] border-b border-[var(--bordure)] animate-pulse" aria-hidden="true" />
+            <div className="h-[52px] animate-pulse" aria-hidden="true" />
+          </>
+        ) : approvals.length === 0 ? (
           <p className="text-[13px] text-muted-foreground px-4 py-6">{t("approvals.empty")}</p>
         ) : (
           approvals.map((a) => {

@@ -71,8 +71,14 @@ export async function clearFailures(email: string, ip: string): Promise<void> {
  * audit P1) — upsert atomique en transaction : si windowStart est hors
  * fenêtre le compteur repart à zéro, sinon la comparaison au plafond
  * précède l'incrément, le tout dans la même transaction db.$transaction
- * (aucun dépassement concurrent possible). Clés typées : REGISTER:{ipHash},
- * FORGOT:{hash(ip|email)}, VERIFY:{emailHash}, WEBHOOK:{provider}.
+ * (aucun dépassement concurrent possible). Clés typées par préfixe :
+ * REGISTER:{hash(ip)}, FORGOT:{hash(ip|email)}, VERIFY:{hash(email)},
+ * RESET_PASSWORD:{hash(ip)} — routes publiques anti-abus ;
+ * AGENT_CHAT / VOICE_TRANSCRIBE / DELIVERABLES_POST:{orgId}:{userId} —
+ * routes authentifiées à coût IA élevé. Les routes webhook (Polar,
+ * WhatsApp) n'ont volontairement aucune fenêtre de débit : elles reposent
+ * sur la vérification de signature et l'idempotence par identifiant
+ * d'événement fournisseur.
  */
 export async function consumeRateLimitWindow(
   key: string,

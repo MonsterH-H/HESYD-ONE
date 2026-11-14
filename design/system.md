@@ -41,10 +41,15 @@ Règles : `--cachet` réservé au sens (action primaire, cachet d'archivage, ale
 fond `--papier` → élévation basse `--papier-leve` (+1 % luminosité) → élévation haute `--papier-leve` + bordure. En sombre : plus haut = plus clair. Sidebar même teinte que le fond. Inputs `--papier-creuse` (plus sombres). Rayons concentriques : `--rayon 6px`, boutons 4, panneaux 8, cachets circulaires.
 
 ## Mouvement (peu, juste)
-- Retour immédiat : 120 ms ease-out. État : 220 ms. Mise en page : 320 ms. Courbes : `cubic-bezier(0.25, 1, 0.5, 1)`.
-- **Moment fort unique : apposition du cachet** (échelle 1.6→1, rotation -8°→-3°, opacité 0→1, 480 ms, ease-out-quint) déclenchée uniquement par l'événement réel « archivage confirmé ».
-- Seulement `transform` et `opacity`. Hauteurs via `grid-template-rows`. `prefers-reduced-motion` : tout passe à 0 ms.
-- Interface optimiste : l'état s'affiche d'abord, la confirmation réseau arrive ensuite.
+- Retour immédiat : 120 ms (`--duree-retour`). État : 220 ms (`--duree-etat`). Mise en page : 320 ms (`--duree-mise-en-page`). Cachet : 480 ms (`--duree-cachet`).
+- Courbes tokenisées et exposées via `@theme inline` : `ease-out` = `cubic-bezier(0.25, 1, 0.5, 1)` (courbe du système, étend le token Tailwind par défaut — pas de fork), `ease-in-out` = `cubic-bezier(0.77, 0, 0.175, 1)`, `ease-drawer` = `cubic-bezier(0.32, 0.72, 0, 1)` (Sheets/drawers).
+- **Moment fort unique : apposition du cachet** (échelle 1.6→1, rotation -8°→-3°, opacité 0→1, 480 ms, courbe du système) déclenchée uniquement par l'événement réel « archivage confirmé ».
+- Entrée de vue : `.vue-entree` (opacité + 6 px, 220 ms) à chaque changement de vue — un seul élément, jamais par ligne.
+- Seulement `transform` et `opacity`. Hauteurs via `grid-template-rows`. `prefers-reduced-motion` : transitions/anim à ~0 ms, itérations à 1, délais à 0.
+- Interface optimiste : l'état s'affiche d'abord, la confirmation réseau arrive ensuite. Aucune progression fabriquée (pas de minuteries de fausses étapes).
+
+## Tokens exposés (utilities Tailwind, `@theme inline`)
+Tous les tokens couleur sont des utilities : `bg-papier / papier-leve / papier-creuse`, `text-encre / encre-2 / encre-3`, `bg-cachet / cachet-fond`, `ruban / ruban-fond`, `carton / carton-fond`, `text-erreur / bg-erreur-fond`, `border-bordure / bordure-forte`, `bg-voile` (scrim sombre des superpositions, les deux thèmes). Échelle typo : `text-meta/corps/section/titre/page/hero`. Espacement : `p-espace-1..8`. Rayons : `--rayon 6px` (boutons 4, panneaux 8).
 
 ## Composants récurrents
 - `.registre` : table-dense (lignes hover `--papier-leve`, colonne statut à gauche en pastille 8 px).

@@ -112,8 +112,8 @@ const LANGS: Array<"fr" | "en"> = ["fr", "en"];
 
 const hairline: CSSProperties = { borderColor: "var(--bordure)" };
 const primaryBtn =
-  "h-11 px-5 bg-[var(--cachet)] text-[var(--primary-foreground)] hover:bg-[var(--cachet)]/90";
-const outlineBtn = "h-11 px-5 border-[var(--bordure-forte)]";
+  "h-11 px-5 bg-cachet text-primary-foreground hover:bg-cachet/90";
+const outlineBtn = "h-11 px-5 border-bordure-forte";
 
 /** Révélation au défilement — sobre (opacité + 10 px), une seule fois, désactivée si mouvement réduit.
  *  Garantie de robustesse : un minuteur force l'affichage après ~1,2 s même si l'observateur
@@ -152,7 +152,7 @@ function Reveal({
       whileInView={{ opacity: 1, y: 0 }}
       animate={forced ? { opacity: 1, y: 0 } : undefined}
       viewport={{ once: true, margin: "-48px" }}
-      transition={{ duration: 0.5, ease: [0.25, 1, 0.5, 1], delay }}
+      transition={{ duration: 0.4, ease: [0.25, 1, 0.5, 1], delay }}
     >
       {children}
     </motion.div>
@@ -165,13 +165,13 @@ function SectionHead({ index, titleKey, subtitleKey }: { index: string; titleKey
   return (
     <Reveal>
       <div className="flex items-baseline gap-4">
-        <span className="font-display tnum text-[16px] leading-none text-[var(--encre-3)]" aria-hidden="true">
+        <span className="font-display tnum text-corps leading-none text-encre-3" aria-hidden="true">
           {index}
         </span>
-        <h2 className="font-display text-[25px] leading-tight">{t(titleKey)}</h2>
+        <h2 className="font-display text-titre leading-tight">{t(titleKey)}</h2>
       </div>
       {subtitleKey ? (
-        <p className="mt-3 text-[15.5px] leading-[1.65] text-[var(--encre-2)] max-w-[58ch]">{t(subtitleKey)}</p>
+        <p className="mt-3 text-corps leading-[1.65] text-encre-2 max-w-[58ch]">{t(subtitleKey)}</p>
       ) : null}
     </Reveal>
   );
@@ -191,7 +191,7 @@ function LanguageSwitch() {
             aria-pressed={lang === code}
             aria-label={code === "fr" ? `${t("common.language")} : Français` : `${t("common.language")}: English`}
             className={`h-11 min-w-11 px-2.5 text-[12.5px] font-medium tracking-wide transition-colors duration-150 ${
-              lang === code ? "text-[var(--encre)]" : "text-[var(--encre-3)] hover:text-[var(--encre-2)]"
+              lang === code ? "text-encre" : "text-encre-3 hover:text-encre-2"
             }`}
           >
             {code.toUpperCase()}
@@ -262,7 +262,7 @@ export default function Landing() {
         <header className="border-b" style={hairline}>
           <div className="mx-auto w-full max-w-6xl px-6 md:px-10 h-14 flex items-center gap-2">
             <HesydMark className="h-7 w-7" />
-            <span className="font-display text-[15px] font-semibold ml-2.5">HESYD ONE</span>
+            <span className="font-display text-corps font-semibold ml-2.5">HESYD ONE</span>
           </div>
         </header>
         <main className="flex-1 grid place-items-center px-6 py-14">
@@ -287,7 +287,7 @@ export default function Landing() {
               <ArrowLeft className="size-4" aria-hidden="true" />
             </Button>
             <HesydMark className="h-7 w-7 ml-1" />
-            <span className="font-display text-[15px] font-semibold ml-1">HESYD ONE</span>
+            <span className="font-display text-corps font-semibold ml-1">HESYD ONE</span>
           </div>
         </header>
         <main className="flex-1 grid place-items-center px-6 py-14">
@@ -303,12 +303,12 @@ export default function Landing() {
       <header className="sticky top-0 z-40 border-b bg-background" style={hairline}>
         <div className="mx-auto w-full max-w-6xl px-6 md:px-10 h-14 flex items-center gap-2 md:gap-3">
           <HesydMark className="h-7 w-7" />
-          <span className="font-display text-[15px] font-semibold ml-2 mr-auto">HESYD ONE</span>
+          <span className="font-display text-corps font-semibold ml-2 mr-auto">HESYD ONE</span>
           <LanguageSwitch />
           <Button
             variant="ghost"
             onClick={() => setMode("login")}
-            className="h-11 px-3 md:px-4 text-[13.5px] text-[var(--encre-2)] hover:text-[var(--encre)]"
+            className="h-11 px-3 md:px-4 text-[13.5px] text-encre-2 hover:text-encre"
           >
             {t("landing.cta.secondary")}
           </Button>
@@ -325,17 +325,17 @@ export default function Landing() {
             <div className="max-w-[38rem]">
               <Reveal>
                 <span
-                  className="inline-flex items-center h-7 px-3 border rounded-full text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--encre-2)]"
+                  className="inline-flex items-center h-7 px-3 border rounded-full text-[11px] font-medium uppercase tracking-[0.14em] text-encre-2"
                   style={{ borderColor: "var(--bordure-forte)", backgroundColor: "var(--papier-leve)" }}
                 >
                   {t("landing.badge")}
                 </span>
-                <h1 className="font-display text-[31px] md:text-[39px] leading-[1.16] mt-7">
+                <h1 className="font-display text-page md:text-hero leading-[1.16] mt-7">
                   {t("landing.title")}
                 </h1>
               </Reveal>
               <Reveal delay={0.1}>
-                <p className="mt-6 text-[16px] leading-[1.65] text-[var(--encre-2)] max-w-[62ch]">
+                <p className="mt-6 text-corps leading-[1.65] text-encre-2 max-w-[62ch]">
                   {t("landing.subtitle")}
                 </p>
                 <div className="mt-9 flex flex-col sm:flex-row gap-3">
@@ -351,7 +351,7 @@ export default function Landing() {
                   {PROOF_KEYS.map((key, i) => (
                     <li
                       key={key}
-                      className={`tnum text-[13.5px] leading-snug text-[var(--encre-2)] ${
+                      className={`tnum text-[13.5px] leading-snug text-encre-2 ${
                         i > 0 ? "border-l pl-5 ml-5" : ""
                       }`}
                       style={i > 0 ? hairline : undefined}
@@ -374,7 +374,7 @@ export default function Landing() {
                 className="size-[150px] md:size-[188px] rounded-full object-cover shadow-[0_2px_6px_rgba(28,25,23,0.16),0_18px_36px_-12px_rgba(159,45,45,0.38)] select-none"
                 draggable={false}
               />
-              <p className="text-[12.5px] leading-snug text-[var(--encre-3)] max-w-[24ch] text-center">
+              <p className="text-[12.5px] leading-snug text-encre-3 max-w-[24ch] text-center">
                 {t("landing.stamp.caption")}
               </p>
             </div>
@@ -390,12 +390,12 @@ export default function Landing() {
                 <li key={f.num} className="border-t last:border-b py-7 md:py-8" style={hairline}>
                   <Reveal>
                     <div className="flex items-start gap-5 md:gap-8">
-                      <span className="font-display tnum text-[20px] md:text-[25px] leading-none text-[var(--encre-3)] shrink-0 w-10 md:w-12 pt-0.5">
+                      <span className="font-display tnum text-section md:text-titre leading-none text-encre-3 shrink-0 w-10 md:w-12 pt-0.5">
                         {f.num}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <h3 className="font-display text-[20px]">{t(f.titleKey)}</h3>
-                        <p className="mt-2.5 text-[15.5px] leading-[1.65] text-[var(--encre-2)] max-w-[56ch]">
+                        <h3 className="font-display text-section">{t(f.titleKey)}</h3>
+                        <p className="mt-2.5 text-corps leading-[1.65] text-encre-2 max-w-[56ch]">
                           {t(f.textKey)}
                         </p>
                       </div>
@@ -404,7 +404,7 @@ export default function Landing() {
                         className="flex size-10 shrink-0 items-center justify-center border rounded-[4px]"
                         style={{ borderColor: "var(--bordure-forte)", backgroundColor: "var(--papier-leve)" }}
                       >
-                        <f.icon className="size-5 text-[var(--encre-2)]" strokeWidth={1.5} />
+                        <f.icon className="size-5 text-encre-2" strokeWidth={1.5} />
                       </span>
                     </div>
                   </Reveal>
@@ -427,12 +427,12 @@ export default function Landing() {
                 >
                   <Reveal>
                     <div className="flex items-baseline gap-6 md:gap-10">
-                      <span className="font-display tnum text-[25px] md:text-[31px] leading-none text-[var(--encre-3)] shrink-0 w-12">
+                      <span className="font-display tnum text-titre md:text-page leading-none text-encre-3 shrink-0 w-12">
                         {s.num}
                       </span>
                       <div>
-                        <h3 className="font-display text-[20px]">{t(s.titleKey)}</h3>
-                        <p className="mt-2.5 text-[15.5px] leading-[1.65] text-[var(--encre-2)] max-w-[56ch]">
+                        <h3 className="font-display text-section">{t(s.titleKey)}</h3>
+                        <p className="mt-2.5 text-corps leading-[1.65] text-encre-2 max-w-[56ch]">
                           {t(s.textKey)}
                         </p>
                       </div>
@@ -460,11 +460,11 @@ export default function Landing() {
               >
                 {TRUST.map((item) => (
                   <li key={item.num} className="p-6 md:p-8" style={{ backgroundColor: "var(--papier-leve)" }}>
-                    <p className="tnum text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--encre-3)]">
+                    <p className="tnum text-[12px] font-medium uppercase tracking-[0.14em] text-encre-3">
                       {item.num}
                     </p>
-                    <h3 className="font-display text-[20px] mt-3">{t(item.titleKey)}</h3>
-                    <p className="mt-2.5 text-[15px] leading-[1.65] text-[var(--encre-2)] max-w-[52ch]">
+                    <h3 className="font-display text-section mt-3">{t(item.titleKey)}</h3>
+                    <p className="mt-2.5 text-corps leading-[1.65] text-encre-2 max-w-[52ch]">
                       {t(item.textKey)}
                     </p>
                   </li>
@@ -491,18 +491,18 @@ export default function Landing() {
                     }}
                   >
                     <div>
-                      <h3 className={`font-display text-[20px] ${p.marked ? "text-[var(--cachet)]" : ""}`}>
+                      <h3 className={`font-display text-section ${p.marked ? "text-cachet" : ""}`}>
                         {t(p.nameKey)}
                       </h3>
                       {p.descKey ? (
-                        <p className="text-[13.5px] text-[var(--encre-2)] mt-1 md:mt-0.5 max-w-[44ch]">
+                        <p className="text-[13.5px] text-encre-2 mt-1 md:mt-0.5 max-w-[44ch]">
                           {t(p.descKey)}
                         </p>
                       ) : null}
                     </div>
                     <p className="whitespace-nowrap md:justify-self-end">
-                      <span className="font-display tnum text-[25px]">{prixAffiche(p)}</span>{" "}
-                      <span className="text-[13px] text-[var(--encre-3)]">{plansApi?.some((x) => x.code === p.planCode) ? t(p.periodKey) : ""}</span>
+                      <span className="font-display tnum text-titre">{prixAffiche(p)}</span>{" "}
+                      <span className="text-[13px] text-encre-3">{plansApi?.some((x) => x.code === p.planCode) ? t(p.periodKey) : ""}</span>
                     </p>
                     <div className="md:justify-self-end">
                       <Button
@@ -510,8 +510,8 @@ export default function Landing() {
                         variant={p.primary ? "default" : "outline"}
                         className={`h-11 px-5 w-full sm:w-auto ${
                           p.primary
-                            ? "bg-[var(--cachet)] text-[var(--primary-foreground)] hover:bg-[var(--cachet)]/90"
-                            : "border-[var(--bordure-forte)]"
+                            ? "bg-cachet text-primary-foreground hover:bg-cachet/90"
+                            : "border-bordure-forte"
                         }`}
                       >
                         {t("landing.pricing.cta")}
@@ -532,10 +532,10 @@ export default function Landing() {
               <Accordion type="single" collapsible className="w-full">
                 {FAQ.map((item, i) => (
                   <AccordionItem key={item.qKey} value={`faq-${i + 1}`} className="border-t border-b-0 last:border-b" style={hairline}>
-                    <AccordionTrigger className="min-h-11 py-5 gap-6 text-left font-display text-[16.5px] font-normal no-underline hover:no-underline hover:text-[var(--encre)] [&[data-state=open]>svg]:text-[var(--cachet)]">
+                    <AccordionTrigger className="min-h-11 py-5 gap-6 text-left font-display text-corps font-normal no-underline hover:no-underline hover:text-encre [&[data-state=open]>svg]:text-cachet">
                       {t(item.qKey)}
                     </AccordionTrigger>
-                    <AccordionContent className="text-[15px] leading-[1.7] text-[var(--encre-2)] max-w-[62ch] pb-5">
+                    <AccordionContent className="text-corps leading-[1.7] text-encre-2 max-w-[62ch] pb-5">
                       {t(item.aKey)}
                     </AccordionContent>
                   </AccordionItem>
@@ -550,12 +550,12 @@ export default function Landing() {
           <div className="mx-auto w-full max-w-6xl">
             <Reveal>
               <div
-                className="border p-8 md:p-14 bg-[var(--papier-leve)] flex flex-col md:flex-row md:items-center md:justify-between gap-8"
+                className="border p-8 md:p-14 bg-papier-leve flex flex-col md:flex-row md:items-center md:justify-between gap-8"
                 style={hairline}
               >
                 <div className="max-w-[44ch]">
-                  <h2 className="font-display text-[25px] md:text-[31px] leading-[1.2]">{t("landing.final.title")}</h2>
-                  <p className="mt-4 text-[15.5px] leading-[1.65] text-[var(--encre-2)]">{t("landing.final.text")}</p>
+                  <h2 className="font-display text-titre md:text-page leading-[1.2]">{t("landing.final.title")}</h2>
+                  <p className="mt-4 text-corps leading-[1.65] text-encre-2">{t("landing.final.text")}</p>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-3 shrink-0">
                   <Button onClick={() => setMode("signup")} className={primaryBtn}>
@@ -578,20 +578,20 @@ export default function Landing() {
             <div>
               <div className="flex items-center">
                 <HesydMark className="h-7 w-7" />
-                <span className="font-display text-[15px] font-semibold ml-2.5">HESYD ONE</span>
+                <span className="font-display text-corps font-semibold ml-2.5">HESYD ONE</span>
               </div>
-              <p className="mt-4 text-[13.5px] text-[var(--encre-2)] max-w-[36ch]">{t("landing.footer.line1")}</p>
-              <p className="mt-2 text-[13px] leading-[1.6] text-[var(--encre-3)] max-w-[40ch]">{t("landing.footer.line2")}</p>
+              <p className="mt-4 text-[13.5px] text-encre-2 max-w-[36ch]">{t("landing.footer.line1")}</p>
+              <p className="mt-2 text-[13px] leading-[1.6] text-encre-3 max-w-[40ch]">{t("landing.footer.line2")}</p>
             </div>
             <nav aria-label={t("landing.footer.product")}>
-              <h3 className="text-[11.5px] font-medium uppercase tracking-[0.14em] text-[var(--encre-3)]">
+              <h3 className="text-[11.5px] font-medium uppercase tracking-[0.14em] text-encre-3">
                 {t("landing.footer.product")}
               </h3>
               <ul className="mt-2">
                 <li>
                   <a
                     href="#fonctionnalites"
-                    className="flex items-center min-h-11 text-[13.5px] text-[var(--encre-2)] hover:text-[var(--encre)] transition-colors duration-150"
+                    className="flex items-center min-h-11 text-[13.5px] text-encre-2 hover:text-encre transition-colors duration-150"
                   >
                     {t("landing.footer.features")}
                   </a>
@@ -599,7 +599,7 @@ export default function Landing() {
                 <li>
                   <a
                     href="#tarifs"
-                    className="flex items-center min-h-11 text-[13.5px] text-[var(--encre-2)] hover:text-[var(--encre)] transition-colors duration-150"
+                    className="flex items-center min-h-11 text-[13.5px] text-encre-2 hover:text-encre transition-colors duration-150"
                   >
                     {t("landing.footer.pricing")}
                   </a>
@@ -607,7 +607,7 @@ export default function Landing() {
                 <li>
                   <a
                     href="#faq"
-                    className="flex items-center min-h-11 text-[13.5px] text-[var(--encre-2)] hover:text-[var(--encre)] transition-colors duration-150"
+                    className="flex items-center min-h-11 text-[13.5px] text-encre-2 hover:text-encre transition-colors duration-150"
                   >
                     {t("landing.footer.faq")}
                   </a>
@@ -615,7 +615,7 @@ export default function Landing() {
               </ul>
             </nav>
             <div>
-              <h3 className="text-[11.5px] font-medium uppercase tracking-[0.14em] text-[var(--encre-3)]">
+              <h3 className="text-[11.5px] font-medium uppercase tracking-[0.14em] text-encre-3">
                 {t("landing.footer.company")}
               </h3>
               <ul className="mt-2">
@@ -623,7 +623,7 @@ export default function Landing() {
                   <button
                     type="button"
                     onClick={() => setLegalDoc("about")}
-                    className="flex items-center min-h-11 text-left text-[13.5px] text-[var(--encre-2)] hover:text-[var(--encre)] transition-colors duration-150"
+                    className="flex items-center min-h-11 text-left text-[13.5px] text-encre-2 hover:text-encre transition-colors duration-150"
                   >
                     {t("landing.footer.about")}
                   </button>
@@ -631,7 +631,7 @@ export default function Landing() {
                 <li>
                   <a
                     href="mailto:contact@hesyd.com"
-                    className="flex items-center min-h-11 text-[13.5px] text-[var(--encre-2)] hover:text-[var(--encre)] transition-colors duration-150"
+                    className="flex items-center min-h-11 text-[13.5px] text-encre-2 hover:text-encre transition-colors duration-150"
                   >
                     {t("landing.footer.contact")}
                   </a>
@@ -639,7 +639,7 @@ export default function Landing() {
               </ul>
             </div>
             <div>
-              <h3 className="text-[11.5px] font-medium uppercase tracking-[0.14em] text-[var(--encre-3)]">
+              <h3 className="text-[11.5px] font-medium uppercase tracking-[0.14em] text-encre-3">
                 {t("landing.footer.legal")}
               </h3>
               <ul className="mt-2">
@@ -647,7 +647,7 @@ export default function Landing() {
                   <button
                     type="button"
                     onClick={() => setLegalDoc("terms")}
-                    className="flex items-center min-h-11 text-left text-[13.5px] text-[var(--encre-2)] hover:text-[var(--encre)] transition-colors duration-150"
+                    className="flex items-center min-h-11 text-left text-[13.5px] text-encre-2 hover:text-encre transition-colors duration-150"
                   >
                     {t("landing.footer.terms")}
                   </button>
@@ -656,7 +656,7 @@ export default function Landing() {
                   <button
                     type="button"
                     onClick={() => setLegalDoc("privacy")}
-                    className="flex items-center min-h-11 text-left text-[13.5px] text-[var(--encre-2)] hover:text-[var(--encre)] transition-colors duration-150"
+                    className="flex items-center min-h-11 text-left text-[13.5px] text-encre-2 hover:text-encre transition-colors duration-150"
                   >
                     {t("landing.footer.privacy")}
                   </button>
@@ -664,7 +664,7 @@ export default function Landing() {
               </ul>
             </div>
             <div>
-              <h3 className="text-[11.5px] font-medium uppercase tracking-[0.14em] text-[var(--encre-3)]">
+              <h3 className="text-[11.5px] font-medium uppercase tracking-[0.14em] text-encre-3">
                 {t("common.language")}
               </h3>
               <div className="mt-2">
@@ -673,8 +673,8 @@ export default function Landing() {
             </div>
           </div>
           <div className="mt-12 pt-6 border-t flex flex-wrap items-center justify-between gap-x-8 gap-y-2" style={hairline}>
-            <p className="tnum text-[13px] text-[var(--encre-2)]">{t("landing.footer.rights")}</p>
-            <p className="text-[13px] text-[var(--encre-3)]">{t("landing.footer.tagline")}</p>
+            <p className="tnum text-[13px] text-encre-2">{t("landing.footer.rights")}</p>
+            <p className="text-[13px] text-encre-3">{t("landing.footer.tagline")}</p>
           </div>
         </div>
       </footer>

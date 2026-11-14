@@ -6,6 +6,7 @@ import { useI18n } from "@/lib/i18n";
 import { useApi, apiGet } from "@/hooks/use-api";
 import { toast } from "@/hooks/use-toast";
 import { useAppStore } from "@/store/app";
+import { EtatErreur } from "@/components/app/etat-erreur";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -98,6 +99,7 @@ export function GroupsView() {
   const [groups, setGroups] = useState<GroupRow[] | null>(null);
   const [whatsappOk, setWhatsappOk] = useState(true);
   const [chargement, setChargement] = useState(true);
+  const [erreur, setErreur] = useState(false);
 
   // Filtres réels : recherche texte, client, statut
   const [recherche, setRecherche] = useState("");
@@ -117,6 +119,9 @@ export function GroupsView() {
     if (d) {
       setGroups(d.groups);
       setWhatsappOk(d.whatsappConfigured);
+      setErreur(false);
+    } else {
+      setErreur(true);
     }
   }, []);
 
@@ -128,6 +133,9 @@ export function GroupsView() {
       if (d) {
         setGroups(d.groups);
         setWhatsappOk(d.whatsappConfigured);
+        setErreur(false);
+      } else {
+        setErreur(true);
       }
       setChargement(false);
     });
@@ -295,11 +303,21 @@ export function GroupsView() {
           <span className="w-[104px] shrink-0 text-right">{t("common.actions")}</span>
         </div>
 
-        {chargement && !groups && (
+        {groups === null && chargement && !erreur && (
           <>
             <Skeleton className="h-12 w-full rounded-md" />
             <Skeleton className="mt-2 h-12 w-full rounded-md" />
           </>
+        )}
+
+        {groups === null && erreur && (
+          <EtatErreur
+            onRetry={() => {
+              setErreur(false);
+              setChargement(true);
+              void refetch();
+            }}
+          />
         )}
 
         {groupesFiltres && groupesFiltres.length === 0 && (

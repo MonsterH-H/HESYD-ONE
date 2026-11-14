@@ -5,9 +5,11 @@ import { useAppStore } from "@/store/app";
 import { useI18n } from "@/lib/i18n";
 import { useApi, apiGet } from "@/hooks/use-api";
 import { StatusPill } from "@/components/app/cachet";
+import { EtatErreur } from "@/components/app/etat-erreur";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Sheet,
   SheetContent,
@@ -64,9 +66,9 @@ export function InboxView() {
   // masquées pour un LECTEUR plutôt que vouées au 403 (audit UI P2).
   const peutCorriger = role !== "LECTEUR";
   const [data, setData] = useState<InboxData | null>(null);
+  const [erreur, setErreur] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const correctOpenFileId = useAppStore((s) => s.selectedClientId);
   const [correctingFile, setCorrectingFile] = useState<FileRow | null>(null);
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [groups, setGroups] = useState<GroupOption[]>([]);
@@ -75,7 +77,12 @@ export function InboxView() {
 
   const load = async () => {
     const inbox = await apiGet<InboxData>("/api/inbox");
-    if (inbox) setData(inbox);
+    if (inbox) {
+      setData(inbox);
+      setErreur(false);
+    } else {
+      setErreur(true);
+    }
     const clientsRes = await apiGet<{ clients: ClientOption[] }>("/api/clients");
     if (clientsRes) setClients(clientsRes.clients);
     const groupsRes = await apiGet<{ groups: GroupOption[] }>("/api/groups");
@@ -86,7 +93,13 @@ export function InboxView() {
     let alive = true;
     (async () => {
       const inbox = await apiGet<InboxData>("/api/inbox");
-      if (inbox && alive) setData(inbox);
+      if (!alive) return;
+      if (inbox) {
+        setData(inbox);
+        setErreur(false);
+      } else {
+        setErreur(true);
+      }
       const clientsRes = await apiGet<{ clients: ClientOption[] }>("/api/clients");
       if (clientsRes && alive) setClients(clientsRes.clients);
       const groupsRes = await apiGet<{ groups: GroupOption[] }>("/api/groups");
@@ -141,6 +154,18 @@ export function InboxView() {
   };
 
   if (!data) {
+    if (erreur) {
+      return (
+        <div className="max-w-[1100px]">
+          <EtatErreur
+            onRetry={() => {
+              setErreur(false);
+              void load();
+            }}
+          />
+        </div>
+      );
+    }
     return (
       <div className="space-y-3" aria-busy="true">
         {[0, 1, 2].map((i) => (
@@ -189,7 +214,7 @@ export function InboxView() {
                   <div key={id} className="registre-row flex items-center gap-3 h-12 px-1 min-w-0">
                     <div className="min-w-0 flex-1 flex items-center gap-2">
                       <span className="truncate text-[13.5px]">
-                        {isFile ? file.originalFilename : reception.caption ?? `réception ${reception.id.slice(0, 8)}`}
+                        {isFile ? file.originalFilename : reception.caption ?? `${t("inbox.reception_prefix")} ${reception.id.slice(0, 8)}`}
                       </span>
                       {isFile && file.client && <span className="meta-points text-[11.5px] text-muted-foreground hidden sm:inline"><span>{file.client.name}</span></span>}
                       {!isFile && (
@@ -248,39 +273,45 @@ export function InboxView() {
           <div className="space-y-4 py-4">
             <div className="space-y-1.5">
               <Label htmlFor="inbox-client">{t("files.upload.toClient")}</Label>
-              <select
-                id="inbox-client"
-                value={selClient}
-                onChange={(e) => {
-                  setSelClient(e.target.value);
+              <Select
+                value={selClient || "none"}
+                onValueChange={(v) => {
+                  setSelClient(v === "none" ? "" : v);
                   setSelGroup("");
                 }}
-                className="flex h-11 w-full rounded-md border bg-[var(--papier-creuse)] px-3 py-2 text-sm"
               >
-                <option value="">—</option>
-                {clients.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.code} — {c.name}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger id="inbox-client" className="h-10 w-full bg-[var(--papier-creuse)]">
+                  <SelectValue placeholder="—" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">—</SelectItem>
+                  {clients.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.code} — {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="inbox-group">{t("files.upload.toGroup")}</Label>
-              <select
-                id="inbox-group"
-                value={selGroup}
-                onChange={(e) => setSelGroup(e.target.value)}
-                className="flex h-11 w-full rounded-md border bg-[var(--papier-creuse)] px-3 py-2 text-sm"
+              <Select
+                value={selGroup || "none"}
+                onValueChange={(v) => setSelGroup(v === "none" ? "" : v)}
                 disabled={!selClient}
               >
-                <option value="">—</option>
-                {groupsForClient.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.code} — {g.name}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger id="inbox-group" className="h-10 w-full bg-[var(--papier-creuse)]">
+                  <SelectValue placeholder="—" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">—</SelectItem>
+                  {groupsForClient.map((g) => (
+                    <SelectItem key={g.id} value={g.id}>
+                      {g.code} — {g.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <p className="text-[12px] text-muted-foreground">{t("inbox.subtitle")}</p>
           </div>
