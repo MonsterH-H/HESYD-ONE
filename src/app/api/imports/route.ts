@@ -43,6 +43,10 @@ export async function POST(req: Request) {
         });
         rows.push(obj);
       });
+      // MINEURE-1 (audit) : même plafond de lignes que la branche CSV —
+      // ExcelJS charge tout en mémoire, un classeur importé ne doit pas
+      // pouvoir saturer le serveur.
+      rows = rows.slice(0, 5000);
     } else {
       throw new Error("format_refuse_utiliser_csv_ou_xlsx");
     }

@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { createHash } from "crypto";
 import { verifyPolarSignature, polarConfigured, applySubscriptionEvent, type PolarWebhookEvent } from "@/lib/connectors/polar";
 import { notify, logAudit } from "@/lib/audit";
 import { sendEmail, systemEmailHtml, resendConfigured } from "@/lib/connectors/resend";
@@ -42,7 +43,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "payload_invalide" }, { status: 400 });
   }
 
-  const providerEventKey = `polar:${req.headers.get("webhook-id") ?? `${event.type}:${event.timestamp ?? raw.length}`}`;
+  // MINEURE-4 (audit) : sans `webhook-id`, le repli n'est plus
+  // `event.timestamp ?? raw.length` (faible : deux livraisons distinctes du
+  // même type à la même seconde se partageaient la clé) mais l'empreinte
+  // SHA-256 du corps brut tronquée à 16 octets hex — deux corps différents ne
+  // se partagent presque jamais la clé, un corps rejoué la partage toujours.
+  // Le comportement avec `webhook-id` est inchangé.
+  const webhookId = req.headers.get("webhook-id");
+  const providerEventKey = webhookId
+    ? `polar:${webhookId}`
+    : `polar:${event.type}:${createHash("sha256").update(raw).digest("hex").slice(0, 32)}`;
 
   // Persistance AVANT traitement (traçabilité), puis CLAIM ATOMIQUE AVANT application.
   const row = await db.subscriptionEvent.upsert({

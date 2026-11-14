@@ -12,6 +12,7 @@ import { toast } from "@/hooks/use-toast";
 import { useAppStore, type AdminTab } from "@/store/app";
 import { QuotaBar } from "@/components/app/cachet";
 import { EtatErreur } from "@/components/app/etat-erreur";
+import { EtatVide } from "@/components/app/etat-vide";
 import { Pill } from "@/components/app/pill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,7 +33,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Copy, ExternalLink, ArchiveRestore, Ban, CheckCircle2, UserMinus, Download, Loader2, MessageSquareOff, QrCode, Trash2 } from "lucide-react";
+import { Copy, ExternalLink, ArchiveRestore, Ban, CheckCircle2, UserMinus, Download, Loader2, MessageSquareOff, QrCode, ShieldCheck, Trash2 } from "lucide-react";
 
 type Membership = {
   id: string;
@@ -173,6 +174,7 @@ function fmt(template: string, params: Record<string, string | number>) {
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
+    // Micro-label de densité volontaire : 10.5px < meta (13px), hors échelle registre assumé
     <h2 className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
       {children}
     </h2>
@@ -524,10 +526,12 @@ export function AdminView() {
         {TABS.map((tab) => (
           <button
             key={tab.id}
+            id={`tab-${tab.id}`}
             role="tab"
             aria-selected={adminTab === tab.id}
+            aria-controls={`panel-${tab.id}`}
             onClick={() => setAdminTab(tab.id)}
-            className={`shrink-0 px-3.5 py-2.5 text-[13px] border-b-2 -mb-px transition-colors ${
+            className={`shrink-0 px-3.5 py-2.5 text-meta border-b-2 -mb-px transition-colors ${
               adminTab === tab.id
                 ? "border-[var(--cachet)] text-foreground font-medium"
                 : "border-transparent text-muted-foreground hover:text-foreground"
@@ -540,7 +544,7 @@ export function AdminView() {
 
       {/* ——— Équipe ——— */}
       {adminTab === "team" && (
-        <section aria-label={t("admin.team")} className="space-y-3">
+        <section id="panel-team" role="tabpanel" aria-labelledby="tab-team" className="space-y-3">
           <div className="flex items-center justify-between">
             <SectionTitle>{t("admin.team")}</SectionTitle>
             {canInvite && (
@@ -564,12 +568,12 @@ export function AdminView() {
               return (
                 <div key={m.id} role="listitem" className="registre-row flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5 min-h-[56px] md:flex-nowrap">
                   <div className="min-w-0 flex-1">
-                    <div className="text-[13.5px] font-medium truncate flex items-center gap-2">
+                    <div className="text-meta font-medium truncate flex items-center gap-2">
                       {m.user.name}
                       {estProprietaire && <Pill tone="ruban" shape="dot" label={t("admin.users.role.PROPRIETAIRE")} />}
                       {m.user.status === "DESACTIVE" && <Pill tone="erreur" shape="cross" label={t("admin.users.disabledBadge")} />}
                     </div>
-                    <div className="text-[11.5px] text-muted-foreground truncate">{m.user.email}</div>
+                    <div className="text-meta text-muted-foreground truncate">{m.user.email}</div>
                   </div>
                   <span className="text-[12px] tnum text-muted-foreground shrink-0 hidden lg:inline">
                     {m.user.lastLoginAt ? `${t("admin.users.lastLogin")} ${new Date(m.user.lastLoginAt).toLocaleDateString()}` : "—"}
@@ -628,11 +632,12 @@ export function AdminView() {
                 {invites.map((inv) => (
                   <div key={inv.id} role="listitem" className="registre-row flex items-center gap-3 px-3 py-2 min-h-[52px]">
                     <div className="min-w-0 flex-1">
-                      <div className="text-[13px] font-medium truncate">{inv.email}</div>
-                      <div className="text-[11px] tnum text-muted-foreground truncate">{`${typeof window !== "undefined" ? window.location.origin : ""}/?invite=${inv.token}`}</div>
+                      <div className="text-meta font-medium truncate">{inv.email}</div>
+                      {/* Jeton d'invitation masqué : les premiers caractères seulement — le lien COMPLET est copié par le bouton ci-contre (copyInviteLink) */}
+                      <div className="text-[11px] tnum text-muted-foreground truncate">{`${typeof window !== "undefined" ? window.location.origin : ""}/?invite=${inv.token.slice(0, 6)}••••`}</div>
                     </div>
                     <span className="text-[12px] text-muted-foreground shrink-0 hidden sm:inline">{t(`admin.users.role.${inv.role}`)}</span>
-                    <span className="text-[11.5px] tnum text-muted-foreground shrink-0 hidden md:inline">{t("admin.users.expires")} {new Date(inv.expiresAt).toLocaleDateString()}</span>
+                    <span className="text-meta tnum text-muted-foreground shrink-0 hidden md:inline">{t("admin.users.expires")} {new Date(inv.expiresAt).toLocaleDateString()}</span>
                     <Button variant="ghost" className="h-9 w-9 px-0 shrink-0" onClick={() => copyInviteLink(inv)} aria-label={t("common.copy")} title={t("common.copy")}>
                       <Copy className="h-3.5 w-3.5" style={copiedId === inv.id ? { color: "var(--ruban)" } : undefined} aria-hidden="true" />
                     </Button>
@@ -649,7 +654,7 @@ export function AdminView() {
 
       {/* ——— Intégrations ——— */}
       {adminTab === "integrations" && (
-        <section aria-label={t("admin.integrations")} className="space-y-3">
+        <section id="panel-integrations" role="tabpanel" aria-labelledby="tab-integrations" className="space-y-3">
           <SectionTitle>{t("admin.integrations")}</SectionTitle>
           <div className="registre border rounded-md bg-card" role="list">
             {CONNECTORS.map((connector) => {
@@ -659,8 +664,8 @@ export function AdminView() {
                 <li key={connector} role="listitem" className="registre-row">
                   <div className="flex items-center gap-3 px-3 py-2 min-h-[52px]">
                     <div className="min-w-0 flex-1">
-                      <div className="text-[13.5px] font-medium truncate">{t(`admin.integrations.${connector}`)}</div>
-                      <div className="text-[11.5px] text-muted-foreground truncate tnum">{connector}</div>
+                      <div className="text-meta font-medium truncate">{t(`admin.integrations.${connector}`)}</div>
+                      <div className="text-meta text-muted-foreground truncate tnum">{connector}</div>
                     </div>
                     {integrationPill(status, t(`admin.integrations.status.${status}`))}
                   </div>
@@ -668,7 +673,7 @@ export function AdminView() {
                   {connector === "GOOGLE_DRIVE" && !configured && (
                     <div className="px-3 pb-3 space-y-2 bg-[var(--papier-leve)] border-b border-border">
                       <p className="text-[12px] leading-snug text-muted-foreground">{t("admin.integrations.connectDriveNote")}</p>
-                      <div className="text-[11.5px] tnum text-muted-foreground">
+                      <div className="text-meta tnum text-muted-foreground">
                         <span className="text-[10.5px] font-semibold uppercase tracking-[0.14em]">{t("admin.integrations.variables")}</span>
                         <span className="ml-2 break-all">{(integrations?.driveSetup?.variablesRequises ?? []).join(" · ")}</span>
                       </div>
@@ -681,7 +686,7 @@ export function AdminView() {
                   {connector === "WHATSAPP_CLOUD" && !configured && (
                     <div className="px-3 pb-3 space-y-2 bg-[var(--papier-leve)] border-b border-border">
                       <p className="text-[12px] leading-snug text-muted-foreground">{t("admin.integrations.whatsappNote")}</p>
-                      <div className="text-[11.5px] tnum text-muted-foreground">
+                      <div className="text-meta tnum text-muted-foreground">
                         <span className="text-[10.5px] font-semibold uppercase tracking-[0.14em]">{t("admin.integrations.variables")}</span>
                         <span className="ml-2 break-all">{(integrations?.whatsappSetup?.variablesRequises ?? []).join(" · ")}</span>
                       </div>
@@ -696,7 +701,7 @@ export function AdminView() {
 
       {/* ——— Abonnement et usage ——— */}
       {adminTab === "subscription" && (
-        <section aria-label={t("admin.subscription")} className="space-y-3">
+        <section id="panel-subscription" role="tabpanel" aria-labelledby="tab-subscription" className="space-y-3">
           <SectionTitle>{t("admin.subscription")}</SectionTitle>
 
           {trial && trialDate && (
@@ -743,7 +748,7 @@ export function AdminView() {
               return (
                 <div key={p.code} role="listitem" className="registre-row flex items-center gap-3 px-3 py-2 min-h-[52px]">
                   <div className="min-w-0 flex-1">
-                    <div className="text-[13.5px] font-medium truncate">{p.name}</div>
+                    <div className="text-meta font-medium truncate">{p.name}</div>
                     <div className="text-[11px] tnum text-muted-foreground meta-points">
                       <span>{p.maxUsers} {t("admin.subscription.users")}</span>
                       <span>{p.monthlyDocuments} {t("admin.subscription.docs")}</span>
@@ -778,23 +783,23 @@ export function AdminView() {
                 </>
               )}
               {invoices !== null && invoices.length === 0 && (
-                <p className="text-[13px] text-muted-foreground px-4 py-6">{t("admin.subscription.invoices.empty")}</p>
+                <EtatVide icon={ShieldCheck} title={t("admin.subscription.invoices.empty")} compact />
               )}
               {invoices?.map((inv) => (
                 <div key={inv.id} role="row" className="registre-row flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2.5 min-h-[56px]">
                   <div className="min-w-0 flex-1">
-                    <div className="text-[13px] font-medium truncate flex items-center gap-2">
+                    <div className="text-meta font-medium truncate flex items-center gap-2">
                       <span className="tnum">{inv.number}</span>
                       <Badge variant="outline" className="text-[10px] font-normal px-1.5 shrink-0">
                         {t(`admin.subscription.kind.${inv.kind}`, inv.kind)}
                       </Badge>
                     </div>
-                    <div className="text-[11.5px] text-muted-foreground truncate">{inv.label}</div>
+                    <div className="text-meta text-muted-foreground truncate">{inv.label}</div>
                   </div>
                   <span className="text-[12.5px] tnum shrink-0">
                     {inv.amountCents > 0 ? `${(inv.amountCents / 100).toFixed(2)} ${inv.currency}` : "—"}
                   </span>
-                  <time className="text-[11.5px] tnum text-muted-foreground shrink-0 hidden sm:inline" dateTime={inv.issuedAt}>
+                  <time className="text-meta tnum text-muted-foreground shrink-0 hidden sm:inline" dateTime={inv.issuedAt}>
                     {t("admin.subscription.invoice.issuedAt")} {new Date(inv.issuedAt).toLocaleDateString()}
                   </time>
                   {inv.downloadUrl ? (
@@ -807,7 +812,7 @@ export function AdminView() {
                       {t("admin.subscription.invoice.download")}
                     </Button>
                   ) : (
-                    <span className="text-[11.5px] text-muted-foreground shrink-0">{t("admin.subscription.invoice.noFile")}</span>
+                    <span className="text-meta text-muted-foreground shrink-0">{t("admin.subscription.invoice.noFile")}</span>
                   )}
                 </div>
               ))}
@@ -824,7 +829,7 @@ export function AdminView() {
                   style={{ background: "var(--papier-leve)", borderColor: "var(--bordure)" }}
                   role="status"
                 >
-                  <p className="text-[13px] font-medium" style={{ color: "var(--carton)" }}>
+                  <p className="text-meta font-medium" style={{ color: "var(--carton)" }}>
                     {fmt(t("admin.subscription.cancel.requested"), {
                       date: cancelState.requestedAt ? new Date(cancelState.requestedAt).toLocaleDateString() : "—",
                     })}
@@ -851,9 +856,9 @@ export function AdminView() {
 
       {/* ——— Journaux d'audit — horodatés, lecture seule ——— */}
       {adminTab === "logs" && (
-        <section aria-label={t("admin.audit")} className="space-y-3">
+        <section id="panel-logs" role="tabpanel" aria-labelledby="tab-logs" className="space-y-3">
           <SectionTitle>{t("admin.audit")}</SectionTitle>
-          <p className="text-[11.5px] text-muted-foreground">{t("admin.audit.note")}</p>
+          <p className="text-meta text-muted-foreground">{t("admin.audit.note")}</p>
           <div className="registre border rounded-md bg-card" role="table" aria-label={t("admin.audit")}>
             {audit === null && erreurAudit && <EtatErreur compact onRetry={() => void loadAudit()} />}
             {audit === null && !erreurAudit && (
@@ -864,7 +869,7 @@ export function AdminView() {
               </>
             )}
             {audit && audit.entries.length === 0 && (
-              <p className="text-[13px] text-muted-foreground px-4 py-6">{t("admin.audit.empty")}</p>
+              <EtatVide icon={ShieldCheck} title={t("admin.audit.empty")} compact />
             )}
             {audit?.entries.map((e) => (
               <div key={e.id} role="row" className="registre-row flex items-start gap-3 px-3 py-2 min-h-[44px]">
@@ -872,7 +877,7 @@ export function AdminView() {
                   <div className="text-[12.5px] font-medium">
                     {t(`audit.${e.action}`, e.action)}
                   </div>
-                  <div className="text-[11.5px] text-muted-foreground leading-snug truncate">
+                  <div className="text-meta text-muted-foreground leading-snug truncate">
                     {e.actor ? `${e.actor.name} · ` : ""}{e.entityType}
                     {e.entityId ? <span className="tnum"> · {e.entityId.slice(-8)}</span> : null}
                   </div>
@@ -888,7 +893,7 @@ export function AdminView() {
               <Button variant="outline" className="h-9 text-[12px]" disabled={auditPage <= 1} onClick={() => setAuditPage((p) => Math.max(1, p - 1))}>
                 {t("common.prev")}
               </Button>
-              <span className="text-[11.5px] tnum text-muted-foreground">{fmt(t("admin.audit.page"), { page: audit.page, total: audit.total })}</span>
+              <span className="text-meta tnum text-muted-foreground">{fmt(t("admin.audit.page"), { page: audit.page, total: audit.total })}</span>
               <Button variant="outline" className="h-9 text-[12px]" disabled={auditPage * AUDIT_PAGE_SIZE >= audit.total} onClick={() => setAuditPage((p) => p + 1)}>
                 {t("common.next")}
               </Button>
@@ -899,7 +904,7 @@ export function AdminView() {
 
       {/* ——— Paramètres de l'organisation ——— */}
       {adminTab === "settings" && (
-        <section aria-label={t("admin.settings")} className="space-y-3 max-w-[560px]">
+        <section id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" className="space-y-3 max-w-[560px]">
           <SectionTitle>{t("admin.settings.org")}</SectionTitle>
           <div className="border rounded-md bg-card p-4 space-y-4">
             <div className="space-y-1.5">
@@ -941,7 +946,7 @@ export function AdminView() {
               </Button>
             </div>
           </div>
-          <p className="text-[11.5px] text-muted-foreground flex items-start gap-1.5">
+          <p className="text-meta text-muted-foreground flex items-start gap-1.5">
             <ArchiveRestore className="h-3.5 w-3.5 mt-0.5 shrink-0" aria-hidden="true" />
             {t("admin.settings.note")}
           </p>
@@ -950,7 +955,7 @@ export function AdminView() {
 
       {/* ——— Sécurité et mémoire ——— */}
       {adminTab === "security" && (
-        <section aria-label={t("admin.security")} className="space-y-8 max-w-[720px]">
+        <section id="panel-security" role="tabpanel" aria-labelledby="tab-security" className="space-y-8 max-w-[720px]">
           {/* Politique d'autonomie — lecture seule, fixée par l'exploitant */}
           <div className="space-y-3">
             <SectionTitle>{t("admin.autonomy.title")}</SectionTitle>
@@ -959,7 +964,7 @@ export function AdminView() {
                 <Badge variant="outline" className="text-[11px] font-normal">
                   {t("admin.autonomy.current")} : {t(`admin.autonomy.${niveauAutonomie}`)}
                 </Badge>
-                <span className="text-[11.5px] text-muted-foreground">{t("admin.autonomy.operatorNote")}</span>
+                <span className="text-meta text-muted-foreground">{t("admin.autonomy.operatorNote")}</span>
               </div>
               <RadioGroup value={niveauAutonomie} disabled aria-label={t("admin.autonomy.title")}>
                 {AUTONOMY_LEVELS.map((niveau) => (
@@ -974,7 +979,7 @@ export function AdminView() {
                   >
                     <RadioGroupItem value={niveau} id={`autonomie-${niveau}`} className="mt-0.5" />
                     <span className="min-w-0">
-                      <span className="block text-[13.5px] font-medium">{t(`admin.autonomy.${niveau}`)}</span>
+                      <span className="block text-meta font-medium">{t(`admin.autonomy.${niveau}`)}</span>
                       <span className="block mt-0.5 text-[12px] leading-snug text-muted-foreground">
                         {t(`admin.autonomy.${niveau}.desc`)}
                       </span>
@@ -982,7 +987,7 @@ export function AdminView() {
                   </label>
                 ))}
               </RadioGroup>
-              <p className="text-[11.5px] leading-snug text-muted-foreground">{t("admin.autonomy.note")}</p>
+              <p className="text-meta leading-snug text-muted-foreground">{t("admin.autonomy.note")}</p>
             </div>
           </div>
 
@@ -990,7 +995,7 @@ export function AdminView() {
           <div className="space-y-3">
             <SectionTitle>{t("admin.memory.title")}</SectionTitle>
             <p className="text-[12.5px] leading-relaxed text-muted-foreground">{t("admin.memory.description")}</p>
-            <div className="registre border rounded-md bg-card max-h-96 overflow-y-auto thin-scroll" role="list" aria-label={t("admin.memory.title")}>
+            <div className="registre border rounded-md bg-card max-h-96 overflow-y-auto scroll-fin" role="list" aria-label={t("admin.memory.title")}>
               {memories === null && erreurMemories && <EtatErreur compact onRetry={() => void chargerMemoire()} />}
               {memories === null && !erreurMemories && (
                 <>
@@ -999,12 +1004,12 @@ export function AdminView() {
                 </>
               )}
               {memories !== null && memories.length === 0 && (
-                <p className="text-[13px] text-muted-foreground px-4 py-6">{t("admin.memory.empty")}</p>
+                <EtatVide icon={ShieldCheck} title={t("admin.memory.empty")} compact />
               )}
               {memories?.map((m) => (
                 <div key={m.id} role="listitem" className="registre-row flex items-start gap-3 px-3 py-2.5 min-h-[56px]">
                   <div className="min-w-0 flex-1">
-                    <p className="text-[13px] leading-snug">{m.content}</p>
+                    <p className="text-meta leading-snug">{m.content}</p>
                     <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-muted-foreground tnum">
                       <span className="inline-flex items-center gap-1">
                         <span
@@ -1085,7 +1090,7 @@ export function AdminView() {
                     {t("admin.whatsapp.codeTitle")}
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
-                    <span className="font-display text-[38px] leading-none font-semibold tracking-[0.14em] tnum">
+                    <span className="font-display text-page leading-none font-semibold tracking-[0.14em] tnum">
                       {resteAppairage > 0 ? activePairing.code : t("admin.whatsapp.expired")}
                     </span>
                     {resteAppairage > 0 && (
@@ -1125,15 +1130,15 @@ export function AdminView() {
                   </>
                 )}
                 {pairings !== null && pairings.pairings.length === 0 && (
-                  <p className="text-[12.5px] text-muted-foreground px-4 py-5">{t("admin.whatsapp.empty")}</p>
+                  <EtatVide icon={ShieldCheck} title={t("admin.whatsapp.empty")} compact />
                 )}
                 {pairings?.pairings.map((p) => (
                   <div key={p.id} role="listitem" className="registre-row flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 min-h-[52px]">
                     <div className="min-w-0 flex-1">
-                      <div className="text-[13px] font-medium truncate flex items-center gap-2">
+                      <div className="text-meta font-medium truncate flex items-center gap-2">
                         {pillAppairage(p.status, t(`admin.whatsapp.status.${p.status}`, p.status))}
                       </div>
-                      <div className="text-[11.5px] tnum text-muted-foreground truncate">
+                      <div className="text-meta tnum text-muted-foreground truncate">
                         {p.phone ? masquerTelephone(p.phone) : `${t("admin.whatsapp.createdBy")} ${p.createdBy}`}
                         {p.pairedAt ? ` · ${t("admin.whatsapp.pairedAt")} ${new Date(p.pairedAt).toLocaleDateString()}` : ""}
                       </div>

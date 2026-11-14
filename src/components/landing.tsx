@@ -1,8 +1,10 @@
 "use client";
 
 import { Fragment, useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import Image from "next/image";
 import {
   ArrowLeft,
+  ArrowRight,
   CalendarClock,
   FileOutput,
   FileSearch,
@@ -312,8 +314,11 @@ export default function Landing() {
           >
             {t("landing.cta.secondary")}
           </Button>
-          <Button onClick={() => setMode("signup")} className={`${primaryBtn} hidden sm:inline-flex`}>
-            {t("landing.header.trial")}
+          {/* Essai visible aussi sur mobile — version compacte icône+label (h-11 = cible tactile), le hero reste le CTA principal */}
+          <Button onClick={() => setMode("signup")} className={`${primaryBtn} px-3 sm:px-5`}>
+            <ArrowRight className="size-4 shrink-0 sm:hidden" aria-hidden="true" />
+            <span className="text-meta leading-none sm:hidden">{t("landing.header.trial")}</span>
+            <span className="hidden sm:inline">{t("landing.header.trial")}</span>
           </Button>
         </div>
       </header>
@@ -365,13 +370,15 @@ export default function Landing() {
 
             {/* Signature : le sceau de cire réel, légèrement incliné, avec sa légende */}
             <div className="justify-self-center md:justify-self-end md:pr-2 md:pt-4 flex flex-col items-center gap-5 rotate-[-2deg]">
-              <img
+              <Image
                 src="/logo-seal.png"
                 alt=""
                 aria-hidden="true"
-                width={188}
-                height={188}
-                className="size-[150px] md:size-[188px] rounded-full object-cover shadow-[0_2px_6px_rgba(28,25,23,0.16),0_18px_36px_-12px_rgba(159,45,45,0.38)] select-none"
+                width={1024}
+                height={1024}
+                priority
+                sizes="(min-width: 768px) 188px, 150px"
+                className="size-[150px] md:size-[188px] rounded-full object-cover shadow-cachet select-none"
                 draggable={false}
               />
               <p className="text-[12.5px] leading-snug text-encre-3 max-w-[24ch] text-center">

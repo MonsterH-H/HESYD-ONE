@@ -8,7 +8,7 @@ import { logStep } from "@/lib/pipeline/ingest";
 import { recordFinancialCandidates } from "@/lib/finances/extract";
 import { NextResponse } from "next/server";
 import { sanitize } from "@/lib/audit";
-import { tryPairByCode, findActivePairingByPhone } from "@/lib/whatsapp-pairing";
+import { tryPairByCode, findActivePairingByPhone, resolvePairingRuntime } from "@/lib/whatsapp-pairing";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -255,8 +255,11 @@ export async function POST(req: Request) {
 
 /** Exécute l'agent et RENVOIE sa réponse finale sur WhatsApp (canal d'origine).
  *  userId réel : celui du propriétaire du numéro appairé — jamais l'id d'organisation.
- *  Rôle cohérent : rôle réel du membership de cet utilisateur dans l'organisation ;
- *  sans membership actif, l'agent n'est pas exécuté du tout. */
+ *  Rôle cohérent (MAJEURE-1b, audit) : résolu UNIQUEMENT via resolvePairingRuntime
+ *  (src/lib/whatsapp-pairing.ts) — rôle réel du membership de l'utilisateur lié au
+ *  numéro, relu à chaque exécution, jamais déduit d'une autre source. Si ce rôle est
+ *  LECTEUR, l'agent tourne en lecture seule (garde des outils d'écriture de
+ *  runner.ts, respectée telle quelle). Sans membership actif, aucun agent. */
 async function runAgentFromWhatsApp(
   organizationId: string,
   orgSlug: string,
@@ -265,11 +268,8 @@ async function runAgentFromWhatsApp(
   pairing: { userId: string; organizationId: string },
   organizationAutonomyLevel?: string,
 ) {
-  const membership = await db.membership.findFirst({
-    where: { organizationId, userId: pairing.userId },
-    select: { role: true },
-  });
-  if (!membership) {
+  const runtime = await resolvePairingRuntime(pairing);
+  if (!runtime) {
     // Le numéro est appairé mais l'utilisateur n'est plus membre : aucun agent n'est exécuté.
     await sendWhatsAppText(
       fromPhone,
@@ -279,7 +279,7 @@ async function runAgentFromWhatsApp(
   }
   const { runAgentTask } = await import("@/lib/agent/runner");
   const conv = await db.conversation.create({
-    data: { organizationId, userId: pairing.userId, channel: "WHATSAPP", title: instruction.slice(0, 50) },
+    data: { organizationId, userId: runtime.userId, channel: "WHATSAPP", title: instruction.slice(0, 50) },
   });
   await db.message.create({ data: { organizationId, conversationId: conv.id, role: "user", content: instruction } });
   let finalAnswer = "";
@@ -287,8 +287,8 @@ async function runAgentFromWhatsApp(
   await runAgentTask({
     organizationId,
     orgSlug,
-    userId: pairing.userId,
-    role: membership.role,
+    userId: runtime.userId,
+    role: runtime.role,
     locale: "fr",
     conversationId: conv.id,
     objective: instruction,

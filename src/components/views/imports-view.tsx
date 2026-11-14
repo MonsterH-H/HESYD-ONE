@@ -11,8 +11,10 @@ import { apiGet } from "@/hooks/use-api";
 import { toast } from "@/hooks/use-toast";
 import { useAppStore } from "@/store/app";
 import { EtatErreur } from "@/components/app/etat-erreur";
+import { EtatVide } from "@/components/app/etat-vide";
 import { Pill } from "@/components/app/pill";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronDown, FileSpreadsheet, UploadCloud } from "lucide-react";
 
 type ImportReportRow = { line: number; result: string; reason?: string };
@@ -46,6 +48,7 @@ type ImportResult = { batchId: string; totalRows: number; okRows: number; reject
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
+    // Micro-label de densité volontaire : 10.5px < meta (13px), hors échelle registre assumé
     <h3 className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
       {children}
     </h3>
@@ -257,14 +260,15 @@ export function ImportsView() {
             {compteurs.map((c) => (
               <div key={c.key} className="rounded-md border px-3 py-2.5" style={{ borderColor: "var(--bordure)", background: "var(--papier-leve)" }}>
                 <div className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t(c.key)}</div>
-                <div className="mt-1 font-display text-[20px] font-semibold tnum">{c.value}</div>
+                <div className="mt-1 font-display text-section font-semibold tnum">{c.value}</div>
               </div>
             ))}
           </div>
 
           <p className="text-[12px] leading-relaxed text-muted-foreground">{preview.message}</p>
 
-          <div className="registre border rounded-md max-h-96 overflow-y-auto thin-scroll" role="table" aria-label={t("imports.preview.title")}>
+          <div className="registre border rounded-md max-h-96 overflow-y-auto scroll-fin" role="table" aria-label={t("imports.preview.title")}>
+            {/* En-têtes : micro-labels de densité volontaires (10.5px < meta 13px), hors échelle assumé */}
             <div role="row" className="flex items-center gap-3 px-3 py-1.5 border-b border-border text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted-foreground sticky top-0 bg-card">
               <span className="w-14 shrink-0" role="columnheader">{t("imports.line")}</span>
               <span className="w-28 shrink-0" role="columnheader">{t("imports.preview.code")}</span>
@@ -283,7 +287,7 @@ export function ImportsView() {
             ))}
           </div>
 
-          <p className="text-[11.5px] leading-snug text-muted-foreground">{t("imports.preview.note")}</p>
+          <p className="text-meta leading-snug text-muted-foreground">{t("imports.preview.note")}</p>
 
           <div className="flex flex-wrap items-center gap-2">
             <Button className="h-11 px-4" disabled={confirming} onClick={() => void confirmerImport()}>
@@ -329,12 +333,27 @@ export function ImportsView() {
               }}
             />
           ) : batches === null ? (
-            <>
-              <div className="h-[52px] border-b border-[var(--bordure)] animate-pulse" aria-hidden="true" />
-              <div className="h-[52px] animate-pulse" aria-hidden="true" />
-            </>
+            <div className="space-y-px" aria-hidden="true">
+              {/* Gabarit réel des lignes du registre : en-tête + deux lignes, mêmes colonnes (ligne/code/nom/résultat/motif) */}
+              <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[var(--bordure)]">
+                <Skeleton className="h-3 w-14" />
+                <Skeleton className="h-3 w-28" />
+                <Skeleton className="h-3 flex-1" />
+                <Skeleton className="h-3 w-28" />
+                <Skeleton className="h-3 w-40 lg:w-64" />
+              </div>
+              {[0, 1].map((row) => (
+                <div key={row} className="registre-row flex items-center gap-3 px-3 py-2 min-h-[44px] text-[12.5px]">
+                  <Skeleton className="h-3.5 w-14 shrink-0" />
+                  <Skeleton className="h-3.5 w-28 shrink-0" />
+                  <Skeleton className="h-3.5 flex-1 min-w-0" />
+                  <Skeleton className="h-5 w-20 shrink-0 rounded-full" />
+                  <Skeleton className="h-3.5 w-40 lg:w-64 shrink-0" />
+                </div>
+              ))}
+            </div>
           ) : batches.length === 0 ? (
-            <p className="text-[13px] text-muted-foreground px-4 py-6">{t("imports.empty")}</p>
+            <EtatVide icon={UploadCloud} title={t("imports.empty")} compact />
           ) : (
             batches.map((b) => {
               const expanded = expandedId === b.id;
@@ -345,7 +364,7 @@ export function ImportsView() {
                     aria-expanded={expanded}
                     className="registre-row w-full min-h-[52px] text-left px-3 py-2 flex items-center gap-3"
                   >
-                    <span className="text-[13px] font-medium truncate min-w-0 flex-1">{b.fileName}</span>
+                    <span className="text-meta font-medium truncate min-w-0 flex-1">{b.fileName}</span>
                     <span className="text-[12px] tnum shrink-0" style={{ color: "var(--ruban)" }}>{b.okRows} {t("imports.ok")}</span>
                     <span className="text-[12px] tnum shrink-0" style={{ color: "var(--erreur)" }}>{b.rejectedRows} {t("imports.rejected")}</span>
                     <span className="text-[12px] tnum text-muted-foreground shrink-0 hidden sm:inline">{b.totalRows} {t("imports.total")}</span>

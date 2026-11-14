@@ -3,6 +3,8 @@
 /**
  * Approbations — actions à effet externe, aperçu exact avant décision.
  * Registre dense + Sheet de détail (side=right), décision réelle POST /api/approvals/[id].
+ * Choix typographiques assumés (échelle registre 13·16·20·25) : micro-labels
+ * uppercase en text-[10.5px] et métadonnées en text-[12px]/[12.5px] — densité conservée.
  */
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n";
@@ -10,10 +12,12 @@ import { useApi, apiGet } from "@/hooks/use-api";
 import { useAppStore } from "@/store/app";
 import { toast } from "@/hooks/use-toast";
 import { EtatErreur } from "@/components/app/etat-erreur";
+import { EtatVide } from "@/components/app/etat-vide";
 import { Pill } from "@/components/app/pill";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ClipboardCheck } from "lucide-react";
 
 type Approval = {
   id: string;
@@ -143,13 +147,21 @@ export function ApprovalsView() {
             }}
           />
         ) : approvals === null ? (
-          <>
-            <div className="h-[52px] border-b border-[var(--bordure)] animate-pulse" aria-hidden="true" />
-            <div className="h-[52px] border-b border-[var(--bordure)] animate-pulse" aria-hidden="true" />
-            <div className="h-[52px] animate-pulse" aria-hidden="true" />
-          </>
+          // Gabarit réel des lignes d'approbation : libellé + pastilles risque/statut + échéance (h-52px)
+          <div aria-hidden="true">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="flex min-h-[52px] items-center gap-3 border-b border-[var(--bordure)] px-3 py-2">
+                <Skeleton className="h-4 min-w-0 max-w-[260px] flex-1" />
+                <Skeleton className="h-5 w-16 shrink-0 rounded-full" />
+                <Skeleton className="h-5 w-24 shrink-0 rounded-full" />
+                <Skeleton className="hidden h-3.5 w-28 shrink-0 sm:block" />
+              </div>
+            ))}
+          </div>
         ) : approvals.length === 0 ? (
-          <p className="text-[13px] text-muted-foreground px-4 py-6">{t("approvals.empty")}</p>
+          <div className="p-3">
+            <EtatVide compact icon={ClipboardCheck} title={t("approvals.empty")} />
+          </div>
         ) : (
           approvals.map((a) => {
             const pending = a.status === "EN_ATTENTE";
@@ -160,7 +172,7 @@ export function ApprovalsView() {
                 disabled={!pending}
                 className={`registre-row w-full min-h-[52px] text-left px-3 py-2 flex items-center gap-3 ${pending ? "cursor-pointer" : "cursor-default"}`}
               >
-                <span className="text-[13.5px] font-medium truncate min-w-0 flex-1">{a.actionType}</span>
+                <span className="text-meta min-w-0 flex-1 truncate font-medium">{a.actionType}</span>
                 {riskPill(a.riskLevel, t(`approvals.risk.${a.riskLevel}`))}
                 {statusPill(a.status, t(`approvals.status.${a.status}`))}
                 {pending ? (
@@ -179,7 +191,7 @@ export function ApprovalsView() {
       <Sheet open={selected !== null} onOpenChange={(open) => !open && setSelected(null)}>
         <SheetContent side="right" className="sm:max-w-md overflow-y-auto scroll-fin">
           <SheetHeader>
-            <SheetTitle className="font-display text-[16px]">{t("approvals.preview")}</SheetTitle>
+            <SheetTitle className="text-corps font-display">{t("approvals.preview")}</SheetTitle>
             <SheetDescription className="text-[12.5px]">
               {selected?.actionType} · {t(`approvals.risk.${selected?.riskLevel ?? ""}`)}
             </SheetDescription>

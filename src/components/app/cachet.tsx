@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/lib/i18n";
+
 /**
  * Cachet d'archivage — signature visuelle de HESYD ONE.
  * Apposé uniquement quand l'archivage est réellement confirmé (preuve).
@@ -55,7 +57,7 @@ export function StatusPill({ status, label }: { status: string; label: string })
   const style = STATUS_STYLE[status] ?? { color: "var(--encre-3)", bg: "var(--muted)", shape: "dot" as const };
   return (
     <span
-      className="inline-flex items-center gap-1.5 text-[11.5px] font-medium whitespace-nowrap"
+      className="inline-flex items-center gap-1.5 text-meta font-medium whitespace-nowrap"
       style={{ color: style.color }}
       title={label}
     >
@@ -86,6 +88,7 @@ export function ChainCustody({
   indexedAt?: string | null;
   labels: { received: string; classified: string; archived: string; indexed: string; pending: string };
 }) {
+  const { t } = useI18n();
   const steps = [
     { label: labels.received, at: receivedAt, done: Boolean(receivedAt) },
     { label: labels.classified, at: classifiedAt, done: Boolean(classifiedAt) },
@@ -93,7 +96,7 @@ export function ChainCustody({
     { label: labels.indexed, at: indexedAt, done: Boolean(indexedAt) },
   ];
   return (
-    <ol className="flex flex-wrap items-start gap-x-1 gap-y-2" aria-label="Chaîne de garde">
+    <ol className="flex flex-wrap items-start gap-x-1 gap-y-2" aria-label={t("files.detail.chain")}>
       {steps.map((s, i) => (
         <li key={s.label} className="flex items-center gap-1">
           <div className="flex flex-col items-start gap-0.5 min-w-0">
@@ -107,7 +110,7 @@ export function ChainCustody({
                 }
                 aria-hidden="true"
               />
-              <span className={`text-[11.5px] ${s.done ? "font-medium" : "text-muted-foreground"}`}>{s.label}</span>
+              <span className={`text-meta ${s.done ? "font-medium" : "text-muted-foreground"}`}>{s.label}</span>
             </span>
             <span className="text-[10px] tnum text-muted-foreground pl-[18px]">{s.at ? new Date(s.at).toLocaleString() : labels.pending}</span>
           </div>
@@ -120,10 +123,18 @@ export function ChainCustody({
 
 /** Jauge de quota fine — seuils 80 % carton / 100 % cachet. */
 export function QuotaBar({ value, max }: { value: number; max: number }) {
+  const { t } = useI18n();
   const ratio = max > 0 ? Math.min(1, value / max) : 0;
   const color = ratio >= 1 ? "var(--cachet)" : ratio >= 0.8 ? "var(--carton)" : "var(--ruban)";
   return (
-    <div className="h-1.5 rounded-full bg-secondary overflow-hidden" role="progressbar" aria-valuenow={Math.round(ratio * 100)} aria-valuemin={0} aria-valuemax={100}>
+    <div
+      className="h-1.5 rounded-full bg-secondary overflow-hidden"
+      role="progressbar"
+      aria-label={t("overview.stat.credits")}
+      aria-valuenow={Math.round(ratio * 100)}
+      aria-valuemin={0}
+      aria-valuemax={100}
+    >
       <div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${Math.max(2, ratio * 100)}%`, background: color }} />
     </div>
   );

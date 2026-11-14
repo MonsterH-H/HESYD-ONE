@@ -18,7 +18,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Pill } from "@/components/app/pill";
 import { EtatErreur } from "@/components/app/etat-erreur";
-import { ChevronDown, Loader2, PauseCircle, PlayCircle, Plus, Zap } from "lucide-react";
+import { EtatVide } from "@/components/app/etat-vide";
+import { ChevronDown, Loader2, PauseCircle, PlayCircle, Plus, Workflow, Zap } from "lucide-react";
 
 type Run = {
   id: string;
@@ -44,6 +45,7 @@ const CRON_FIELD = /^(\*|\d+(?:-\d+)?(?:\/\d+)?|\*\/\d+)$/;
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
+    // Micro-label de densité volontaire : 10.5px < meta (13px), hors échelle registre assumé
     <h3 className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
       {children}
     </h3>
@@ -204,7 +206,7 @@ export function AutomationsView() {
         ) : erreurChargement ? (
           <EtatErreur onRetry={() => void load()} />
         ) : automations.length === 0 ? (
-          <p className="text-[13px] text-muted-foreground px-4 py-6">{t("automations.empty")}</p>
+          <EtatVide icon={Workflow} title={t("automations.empty")} compact />
         ) : (
           automations.map((a) => {
             const expanded = expandedId === a.id;
@@ -218,7 +220,7 @@ export function AutomationsView() {
                     aria-expanded={expanded}
                     className="registre-row min-h-[52px] flex-1 min-w-0 text-left px-3 py-2 flex items-center gap-3"
                   >
-                    <span className="text-[13.5px] font-medium truncate min-w-0 flex-1">{a.name}</span>
+                    <span className="text-meta font-medium truncate min-w-0 flex-1">{a.name}</span>
                     <span className="text-[12px] text-muted-foreground truncate hidden md:inline max-w-[220px]">{t(`automations.template.${a.template}`)}</span>
                     <span className="text-[12px] tnum text-muted-foreground shrink-0 hidden sm:inline">{a.cronExpr}</span>
                     {a.status === "ACTIVE" ? <Pill tone="ruban" shape="dot" label={t("automations.status.ACTIVE")} /> : <Pill tone="carton" shape="ring" label={t("automations.status.PAUSE")} />}
@@ -335,8 +337,8 @@ export function AutomationsView() {
                 className={`h-11 tnum ${cronError ? "border-[var(--erreur)]" : ""}`}
                 aria-invalid={cronError}
               />
-              <p className="text-[11.5px] text-muted-foreground leading-snug">{t("automations.cronHelp")}</p>
-              {cronError && <p className="text-[11.5px]" style={{ color: "var(--erreur)" }}>{t("automations.cronInvalid")}</p>}
+              <p className="text-meta text-muted-foreground leading-snug">{t("automations.cronHelp")}</p>
+              {cronError && <p className="text-meta" style={{ color: "var(--erreur)" }}>{t("automations.cronInvalid")}</p>}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="automation-config" className="text-[12.5px]">{t("automations.configJson")}</Label>

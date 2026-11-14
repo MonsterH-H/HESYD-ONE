@@ -440,6 +440,7 @@ export const fr: Record<string, string> = {
   "api.trop_de_tentatives": "Trop de tentatives : réessayez plus tard.",
   "api.credits_insuffisants": "Crédits insuffisants : l'action est mise en attente, aucune donnée n'est perdue.",
   "common.retry": "Réessayer",
+  "common.refresh": "Rafraîchir",
   "common.erreur_chargement": "Chargement impossible",
   "common.erreur_chargement_detail": "La liste n'a pas pu être récupérée. Aucune donnée n'est perdue.",
   "common.errorLoadDashboard": "Impossible de charger le tableau de bord : vérifiez votre connexion puis réessayez. Aucune donnée n'est perdue.",

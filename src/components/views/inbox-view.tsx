@@ -1,14 +1,21 @@
 "use client";
 
+/**
+ * Choix typographiques assumés (échelle registre 13·16·20·25) : libellés de
+ * section en text-[11.5px]/[12px]/[12.5px] et horodatages — densité de file
+ * conservée volontairement ; les titres de section restent des micro-labels uppercase.
+ */
 import { useEffect, useState } from "react";
 import { useAppStore } from "@/store/app";
 import { useI18n } from "@/lib/i18n";
 import { useApi, apiGet } from "@/hooks/use-api";
 import { StatusPill } from "@/components/app/cachet";
 import { EtatErreur } from "@/components/app/etat-erreur";
+import { EtatVide } from "@/components/app/etat-vide";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Sheet,
@@ -19,7 +26,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { toast } from "@/hooks/use-toast";
-import { RefreshCw, ClipboardCheck } from "lucide-react";
+import { RefreshCw, ClipboardCheck, Inbox } from "lucide-react";
 
 type FileRow = {
   id: string;
@@ -166,10 +173,15 @@ export function InboxView() {
         </div>
       );
     }
+    // Gabarit réel des lignes de la file : titre + méta + pastille de statut (h-12)
     return (
       <div className="space-y-3" aria-busy="true">
         {[0, 1, 2].map((i) => (
-          <div key={i} className="h-12 rounded bg-secondary animate-pulse" />
+          <div key={i} className="flex h-12 items-center gap-3 px-1" aria-hidden="true">
+            <Skeleton className="h-4 min-w-0 max-w-[320px] flex-1" />
+            <Skeleton className="hidden h-3.5 w-24 sm:block" />
+            <Skeleton className="h-5 w-24 shrink-0 rounded-full" />
+          </div>
         ))}
         <span className="sr-only">{t("common.loading")}</span>
       </div>
@@ -177,13 +189,15 @@ export function InboxView() {
   }
 
   if (data.total === 0) {
+    // Rien à traiter : sémantique de rafraîchissement (pas une erreur à « réessayer »)
     return (
-      <div className="flex flex-col items-start gap-3 py-16">
-        <p className="font-display text-lg">{t("inbox.empty")}</p>
-        <Button variant="outline" size="sm" onClick={load}>
-          <RefreshCw className="h-4 w-4" />
-          {t("common.retry")}
-        </Button>
+      <div className="max-w-[1100px] py-10">
+        <EtatVide
+          icon={Inbox}
+          title={t("inbox.empty")}
+          actionLabel={t("common.refresh")}
+          onAction={() => void load()}
+        />
       </div>
     );
   }
@@ -201,7 +215,7 @@ export function InboxView() {
         section.items.length === 0 ? null : (
           <section key={section.key} aria-label={t(section.key)}>
             <div className="flex items-baseline gap-3 mb-2">
-              <h2 className="text-[13px] font-medium tracking-[0.08em] uppercase text-muted-foreground">{t(section.key)}</h2>
+              <h2 className="text-meta font-medium tracking-[0.08em] uppercase text-muted-foreground">{t(section.key)}</h2>
               <span className="tnum text-[12px] text-muted-foreground">{section.items.length}</span>
             </div>
             <div className="border-t">
@@ -213,7 +227,7 @@ export function InboxView() {
                 return (
                   <div key={id} className="registre-row flex items-center gap-3 h-12 px-1 min-w-0">
                     <div className="min-w-0 flex-1 flex items-center gap-2">
-                      <span className="truncate text-[13.5px]">
+                      <span className="text-meta truncate">
                         {isFile ? file.originalFilename : reception.caption ?? `${t("inbox.reception_prefix")} ${reception.id.slice(0, 8)}`}
                       </span>
                       {isFile && file.client && <span className="meta-points text-[11.5px] text-muted-foreground hidden sm:inline"><span>{file.client.name}</span></span>}

@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * Choix typographiques assumés (échelle registre 13·16·20·25) : micro-labels
+ * de cartes et d'en-têtes de colonnes en text-[11px], densité de tableau et
+ * horodatages en text-[11.5px]/[12px]/[12.5px] — densité conservée volontairement.
+ */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Check,
@@ -9,12 +14,15 @@ import {
   PencilLine,
   Search,
   Sparkles,
+  Wallet,
   X,
 } from "lucide-react";
 import { useAppStore } from "@/store/app";
 import { useI18n } from "@/lib/i18n";
 import { useApi, apiGet } from "@/hooks/use-api";
 import { toast } from "@/hooks/use-toast";
+import { EtatErreur } from "@/components/app/etat-erreur";
+import { EtatVide } from "@/components/app/etat-vide";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -441,8 +449,8 @@ export function FinancesView() {
       {/* En-tête — un seul bouton primaire par écran */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="font-display text-[20px] font-semibold">{t("finances.title")}</h2>
-          <p className="mt-1 max-w-[680px] text-[13px] text-muted-foreground">{t("finances.subtitle")}</p>
+          <h2 className="text-section font-display font-semibold">{t("finances.title")}</h2>
+          <p className="text-meta mt-1 max-w-[680px] text-muted-foreground">{t("finances.subtitle")}</p>
         </div>
         {peutCorriger && <Button onClick={ouvrirCreation}>{t("finances.add")}</Button>}
       </div>
@@ -462,11 +470,11 @@ export function FinancesView() {
             {summary === null ? (
               <Skeleton className="mt-2 h-7 w-28 rounded-md" />
             ) : lignesDevise(summary.totals[statut]).length === 0 ? (
-              <p className="mt-1.5 font-display text-[20px] leading-tight text-muted-foreground">—</p>
+              <p className="text-section font-display mt-1.5 leading-tight text-muted-foreground">—</p>
             ) : (
               <div className="mt-1.5">
                 {lignesDevise(summary.totals[statut]).map((l) => (
-                  <p key={l.devise} className="font-display tnum text-[20px] leading-tight">
+                  <p key={l.devise} className="text-section font-display tnum leading-tight">
                     {formatMontant(l.cents, l.devise, locale)}
                   </p>
                 ))}
@@ -554,25 +562,27 @@ export function FinancesView() {
         </div>
       )}
 
-      {/* État d'erreur réel — bouton Réessayer */}
+      {/* État d'erreur réel — composant partagé, reprise honnête */}
       {erreur && operations === null && (
-        <div className="mt-4 rounded-lg border border-[var(--bordure)] bg-[var(--papier-leve)] px-6 py-10 text-center">
-          <p className="text-[13.5px] text-muted-foreground">{t("finances.error")}</p>
-          <Button variant="outline" className="mt-4 h-11" onClick={recharger}>
-            {t("common.retry")}
-          </Button>
+        <div className="mt-4">
+          <EtatErreur
+            onRetry={() => {
+              setErreur(false);
+              recharger();
+            }}
+          />
         </div>
       )}
 
-      {/* État vide réel — message clair + action */}
+      {/* État vide réel — icône registre + action de création quand elle est permise */}
       {operations !== null && operations.length === 0 && (
-        <div className="mt-4 rounded-lg border border-dashed border-[var(--bordure-forte)] px-6 py-10 text-center">
-          <p className="text-[13.5px] text-muted-foreground">{filtresActifs ? t("common.noResults") : t("finances.empty")}</p>
-          {!filtresActifs && peutCorriger && (
-            <Button variant="outline" className="mt-4 h-11" onClick={ouvrirCreation}>
-              {t("finances.add")}
-            </Button>
-          )}
+        <div className="mt-4">
+          <EtatVide
+            icon={Wallet}
+            title={filtresActifs ? t("common.noResults") : t("finances.empty")}
+            actionLabel={!filtresActifs && peutCorriger ? t("finances.add") : undefined}
+            onAction={ouvrirCreation}
+          />
         </div>
       )}
 
@@ -609,10 +619,10 @@ export function FinancesView() {
                   <TableCell className="tnum whitespace-nowrap text-[12.5px] text-muted-foreground">
                     {op.operationDate ? new Date(op.operationDate).toLocaleDateString() : "—"}
                   </TableCell>
-                  <TableCell className="max-w-[260px] truncate text-[13.5px] font-medium" title={op.label}>
+                  <TableCell className="text-meta max-w-[260px] truncate font-medium" title={op.label}>
                     {op.label}
                   </TableCell>
-                  <TableCell className="tnum whitespace-nowrap text-right text-[13px]">
+                  <TableCell className="text-meta tnum whitespace-nowrap text-right">
                     {op.amountCents != null ? formatMontant(op.amountCents, op.currency, locale) : "—"}
                   </TableCell>
                   <TableCell>
@@ -708,7 +718,7 @@ export function FinancesView() {
           {detail && (
             <>
               <SheetHeader>
-                <SheetTitle className="pr-6 font-display text-[18px] leading-snug">{detail.label}</SheetTitle>
+                <SheetTitle className="pr-6 text-[18px] font-display leading-snug">{detail.label}</SheetTitle>
                 <SheetDescription className="flex flex-wrap items-center gap-2">
                   <BadgeStatut status={detail.status} />
                   <span className="tnum">
@@ -718,7 +728,7 @@ export function FinancesView() {
               </SheetHeader>
 
               <div className="flex flex-1 flex-col gap-4 px-4">
-                <dl className="space-y-2 text-[13px]">
+                <dl className="text-meta space-y-2">
                   <div className="flex justify-between gap-4">
                     <dt className="shrink-0 text-muted-foreground">{t("finances.col.date")}</dt>
                     <dd className="tnum text-right">
@@ -877,7 +887,7 @@ export function FinancesView() {
       <Sheet open={creationOpen} onOpenChange={fermerCreation}>
         <SheetContent side="right" className="w-[420px] sm:max-w-[420px]">
           <SheetHeader>
-            <SheetTitle className="font-display text-[18px]">{t("finances.add")}</SheetTitle>
+            <SheetTitle className="text-[18px] font-display">{t("finances.add")}</SheetTitle>
             <SheetDescription>{t("finances.form.description")}</SheetDescription>
           </SheetHeader>
           <form
@@ -992,7 +1002,7 @@ export function FinancesView() {
                     className="mt-0.5"
                   />
                   <span>
-                    <span className="block text-[13px] font-medium">{t("finances.form.confirmer")}</span>
+                    <span className="text-meta block font-medium">{t("finances.form.confirmer")}</span>
                     <span className="mt-0.5 block text-[11.5px] text-muted-foreground">{t("finances.form.confirmerHint")}</span>
                   </span>
                 </label>
@@ -1024,7 +1034,7 @@ export function FinancesView() {
           {correction && (
             <>
               <SheetHeader>
-                <SheetTitle className="font-display text-[18px]">{t("finances.actions.correct")}</SheetTitle>
+                <SheetTitle className="text-[18px] font-display">{t("finances.actions.correct")}</SheetTitle>
                 <SheetDescription className="truncate">{correction.label}</SheetDescription>
               </SheetHeader>
               <div className="flex-1 space-y-3 px-4">

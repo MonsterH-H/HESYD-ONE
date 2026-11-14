@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import Image from "next/image";
 import { Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useI18n } from "@/lib/i18n";
@@ -729,13 +730,14 @@ export function AuthView({
   return (
     <div className="w-full max-w-md">
       {/* Sceau de marque — cachet de cire réel, signature du produit */}
-      <img
+      <Image
         src="/logo-seal.png"
         alt=""
         aria-hidden="true"
-        width={72}
-        height={72}
-        className="mb-6 size-[72px] rounded-full object-cover shadow-[0_1px_3px_rgba(28,25,23,0.18),0_8px_20px_-8px_rgba(159,45,45,0.35)] select-none"
+        width={1024}
+        height={1024}
+        sizes="72px"
+        className="mb-6 size-[72px] rounded-full object-cover shadow-cachet select-none"
         draggable={false}
       />
       <h1 className="font-display text-[25px] leading-tight">

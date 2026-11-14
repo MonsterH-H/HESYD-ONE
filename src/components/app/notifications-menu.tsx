@@ -77,7 +77,15 @@ export function NotificationsMenu() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative h-11 w-11" aria-label={t("notifications.title")} title={t("notifications.title")}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative h-11 w-11"
+          // Les non-lus sont annoncés par le trigger lui-même (audit UI — le
+          // badge visuel seul était muet pour les lecteurs d'écran).
+          aria-label={t("notifications.title") + (unread > 0 ? " — " + unread : "")}
+          title={t("notifications.title")}
+        >
           <Bell className="h-[18px] w-[18px]" aria-hidden="true" />
           {unread > 0 && (
             <span

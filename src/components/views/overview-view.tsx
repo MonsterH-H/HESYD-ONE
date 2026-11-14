@@ -1,10 +1,18 @@
 "use client";
 
+/**
+ * Choix typographiques assumés (échelle registre 13·16·20·25) : micro-labels
+ * d'en-tête et horodatages en text-[11px]/[11.5px]/[12px]/[12.5px], libellés
+ * uppercase du bordereau — densité de registre conservée volontairement.
+ */
 import { useCallback, useEffect, useState } from "react";
+import { FileText } from "lucide-react";
 import { useAppStore } from "@/store/app";
 import { useI18n } from "@/lib/i18n";
 import { apiGet } from "@/hooks/use-api";
 import { StatusPill, QuotaBar } from "@/components/app/cachet";
+import { EtatErreur } from "@/components/app/etat-erreur";
+import { EtatVide } from "@/components/app/etat-vide";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -82,16 +90,15 @@ export function OverviewView() {
   }
 
   if (!data) {
-    // État d'erreur RÉEL (audit UI P2 — l'échec de chargement n'est plus rendu
-    // comme un registre vide avec un faux CTA de dépôt) : message explicite + rechargement.
+    // État d'erreur RÉEL (audit UI P2) : message explicite + rechargement via le composant partagé.
     return (
       <div className="mx-auto max-w-[1100px]">
-        <p className="border border-[var(--bordure)] rounded-lg px-6 py-10 text-center text-[13.5px] text-muted-foreground">
-          {t("common.errorLoadDashboard")}
-        </p>
-        <div className="mt-4 flex justify-end">
-          <Button onClick={() => { setChargement(true); void charger(); }}>{t("common.retry")}</Button>
-        </div>
+        <EtatErreur
+          onRetry={() => {
+            setChargement(true);
+            void charger();
+          }}
+        />
       </div>
     );
   }
@@ -125,21 +132,21 @@ export function OverviewView() {
       {/* Bordereau du jour */}
       <section className="rounded-lg border border-[var(--bordure)] bg-[var(--papier-leve)] px-6 py-5">
         <p className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">{t("overview.bordereau")}</p>
-        <p className="bordereau-num mt-1.5 text-[25px] leading-tight">
+        <p className="bordereau-num text-titre mt-1.5 leading-tight">
           {t("overview.registreNo").toUpperCase()} {registreNo}
         </p>
       </section>
 
-      {/* Indicateurs réels — rangée de paires séparées par des filets verticaux */}
+      {/* Indicateurs réels — grille sans filets survivant au wrap : bordures verticales uniquement sur la rangée md unique */}
       <section className="mt-6" aria-label={t("overview.bordereau")}>
-        <div className="flex flex-wrap items-stretch gap-y-4">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 md:grid-cols-5">
           {indicateurs.map((ind, i) => (
             <div
               key={ind.key}
-              className={`flex min-w-[150px] flex-1 flex-col justify-between py-1 ${i > 0 ? "border-l border-[var(--bordure)] pl-6" : ""} ${i < indicateurs.length - 1 ? "pr-6" : ""}`}
+              className={`flex min-w-0 flex-col justify-between py-1 ${i > 0 ? "md:border-l md:border-[var(--bordure)] md:pl-6" : ""}`}
             >
               <p className="text-[11.5px] text-muted-foreground">{t(ind.key)}</p>
-              <p className="mt-1 font-display tnum text-[25px] leading-tight">{ind.value}</p>
+              <p className="mt-1 font-display tnum text-titre leading-tight">{ind.value}</p>
               {ind.quota && quotaMax > 0 && (
                 <div className="mt-2.5 max-w-[180px]">
                   {/* Jauge honnête : max réel du plan — si le plan est inconnu, la jauge reste masquée. */}
@@ -155,8 +162,8 @@ export function OverviewView() {
       {onboardingEnCours && ob && (
         <section className="mt-8" aria-label={t("overview.onboarding.title")}>
           <div className="flex items-center justify-between gap-4">
-            <h2 className="font-display text-[16px] font-semibold">{t("overview.onboarding.title")}</h2>
-            <Button variant="link" className="h-11 px-2 text-[13px]" onClick={() => setOnboardingOpen(true)}>
+            <h2 className="text-corps font-display font-semibold">{t("overview.onboarding.title")}</h2>
+            <Button variant="link" className="text-meta h-11 px-2" onClick={() => setOnboardingOpen(true)}>
               {t("overview.onboarding.resume")}
             </Button>
           </div>
@@ -172,7 +179,7 @@ export function OverviewView() {
                   }
                   aria-hidden="true"
                 />
-                <span className={`text-[13.5px] ${e.fait ? "text-muted-foreground line-through decoration-[var(--bordure-forte)]" : ""}`}>
+                <span className={`text-meta ${e.fait ? "text-muted-foreground line-through decoration-[var(--bordure-forte)]" : ""}`}>
                   {t(e.key)}
                 </span>
               </li>
@@ -183,15 +190,15 @@ export function OverviewView() {
 
       {/* Dernières réceptions */}
       <section className="mt-8" aria-label={t("overview.recentFiles")}>
-        <h2 className="font-display text-[16px] font-semibold">{t("overview.recentFiles")}</h2>
+        <h2 className="text-corps font-display font-semibold">{t("overview.recentFiles")}</h2>
         {data.recentFiles.length === 0 ? (
           <div className="mt-3">
-            <p className="border border-[var(--bordure)] rounded-lg px-6 py-8 text-center text-[13.5px] text-muted-foreground">
-              {t("files.empty")}
-            </p>
-            <div className="mt-3 flex justify-end">
-              <Button onClick={() => setView("files")}>{t("files.upload")}</Button>
-            </div>
+            <EtatVide
+              icon={FileText}
+              title={t("files.empty")}
+              actionLabel={t("files.upload")}
+              onAction={() => setView("files")}
+            />
           </div>
         ) : (
           <ul className="registre mt-2 border-t border-[var(--bordure)]">
@@ -203,7 +210,7 @@ export function OverviewView() {
                   className="flex h-12 w-full items-center gap-4 px-2 text-left"
                   title={f.originalFilename}
                 >
-                  <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium">{f.originalFilename}</span>
+                  <span className="text-meta min-w-0 flex-1 truncate font-medium">{f.originalFilename}</span>
                   <span className="meta-points hidden max-w-[220px] shrink-0 items-center text-[12px] text-muted-foreground md:flex">
                     {f.client && <span className="truncate">{f.client.name}</span>}
                     {f.group && <span className="truncate">{f.group.name}</span>}
@@ -224,7 +231,7 @@ export function OverviewView() {
       {/* Activité récente */}
       {data.recentLogs.length > 0 && (
         <section className="mt-8" aria-label={t("overview.activity")}>
-          <h2 className="font-display text-[16px] font-semibold">{t("overview.activity")}</h2>
+          <h2 className="text-corps font-display font-semibold">{t("overview.activity")}</h2>
           <ul className="registre mt-2 border-t border-[var(--bordure)]">
             {data.recentLogs.map((l, i) => (
               <li key={`${l.at}-${i}`} className="flex h-12 items-center gap-3 border-b border-[var(--bordure)] px-2">
@@ -245,11 +252,11 @@ export function OverviewView() {
       {/* État des intégrations */}
       {data.integrations.length > 0 && (
         <section className="mt-8" aria-label={t("overview.integrations")}>
-          <h2 className="font-display text-[16px] font-semibold">{t("overview.integrations")}</h2>
+          <h2 className="text-corps font-display font-semibold">{t("overview.integrations")}</h2>
           <ul className="registre mt-2 border-t border-[var(--bordure)]">
             {data.integrations.map((intg) => (
               <li key={intg.connector} className="flex h-12 items-center gap-3 border-b border-[var(--bordure)] px-2">
-                <span className="w-40 shrink-0 truncate text-[13px] font-medium">
+                <span className="text-meta w-40 shrink-0 truncate font-medium">
                   {CONNECTEURS[intg.connector] ?? intg.connector}
                 </span>
                 <span

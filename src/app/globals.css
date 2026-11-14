@@ -45,6 +45,7 @@
   --ease-out: var(--ease-hesyd);
   --ease-in-out: var(--ease-hesyd-inout);
   --ease-drawer: var(--ease-hesyd-drawer);
+  --shadow-cachet: var(--ombre-cachet);
 
   /* — Mapping shadcn — */
   --color-background: var(--background);
@@ -110,6 +111,8 @@
   --bordure-forte: oklch(0.245 0.018 65 / 0.26);
   /* Voile des superpositions (scrim sombre dans les deux thèmes — c'est sa fonction) */
   --voile: oklch(0.22 0.015 75 / 0.55);
+  /* Ombre « cachet » : portée papier + chaleur du sceau, uniquement via token (aucun rgba inline) */
+  --ombre-cachet: 0 1px 2px oklch(0.245 0.018 65 / 0.05), 0 10px 28px -10px oklch(0.545 0.175 33 / 0.16);
 
   /* Mouvement : retour 120ms · état 220ms · mise en page 320ms · cachet 480ms (moment fort) */
   --ease-hesyd: cubic-bezier(0.25, 1, 0.5, 1);
@@ -174,6 +177,8 @@
   --bordure: oklch(0.905 0.012 85 / 0.13);
   --bordure-forte: oklch(0.905 0.012 85 / 0.24);
   --voile: oklch(0.12 0.012 75 / 0.65);
+  /* Ombre « cachet » en sombre : ancre plutôt qu'elle ne colore */
+  --ombre-cachet: 0 1px 2px oklch(0 0 / 0.30), 0 12px 32px -12px oklch(0 0 / 0.45);
 
   /* Divergence intentionnelle : en sombre, les contrôles (secondary/muted) sont plus
      clairs que le fond — pensée « encre », pas inversion mécanique. */

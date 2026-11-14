@@ -19,8 +19,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EtatErreur } from "@/components/app/etat-erreur";
+import { EtatVide } from "@/components/app/etat-vide";
 import { toast } from "@/hooks/use-toast";
-import { ChevronDown, Download, FileText, Loader2, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, Download, FileOutput, FileText, Loader2, Plus, Trash2 } from "lucide-react";
 
 type DeliverableSource = { label: string; fileRef?: string };
 
@@ -190,7 +191,7 @@ export function DeliverablesView() {
   return (
     <div className="space-y-4 max-w-[1100px]">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[13px] text-muted-foreground">{t("deliverables.subtitle")}</p>
+        <p className="text-meta text-muted-foreground">{t("deliverables.subtitle")}</p>
         {peutGenerer && (
           <Button onClick={() => setOpen(true)} className="shrink-0">
             <Plus className="h-4 w-4" aria-hidden="true" />
@@ -209,7 +210,7 @@ export function DeliverablesView() {
         ) : erreurChargement ? (
           <EtatErreur onRetry={() => void load()} />
         ) : deliverables.length === 0 ? (
-          <p className="text-[13px] text-muted-foreground px-4 py-6">{t("deliverables.empty")}</p>
+          <EtatVide icon={FileOutput} title={t("deliverables.empty")} compact />
         ) : (
           deliverables.map((d) => {
             const expanded = expandedId === d.id;
@@ -223,7 +224,7 @@ export function DeliverablesView() {
                     aria-expanded={expanded}
                     className="registre-row min-h-[52px] flex-1 min-w-0 text-left px-3 py-2 flex items-center gap-3"
                   >
-                    <span className="text-[13.5px] font-medium truncate min-w-0 flex-1">{d.title}</span>
+                    <span className="text-meta font-medium truncate min-w-0 flex-1">{d.title}</span>
                     <Badge variant="outline" className="text-[10.5px] font-normal shrink-0 px-1.5">{d.type}</Badge>
                     <span className="text-[12px] tnum text-muted-foreground shrink-0">{t("deliverables.version")} v{d.version}</span>
                     <span className="text-[12px] tnum text-muted-foreground shrink-0 hidden sm:inline">{humanSize(d.sizeBytes)}</span>
@@ -253,6 +254,7 @@ export function DeliverablesView() {
                     <div className="px-3 pb-4 pt-1 border-b border-border bg-[var(--papier-leve)] space-y-3 text-[12.5px]">
                       {d.qualityCheck && (
                         <div>
+                          {/* Micro-label de densité volontaire : 10.5px < meta (13px), hors échelle registre assumé */}
                           <div className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("deliverables.quality")}</div>
                           <p className="mt-1 leading-snug text-muted-foreground">{d.qualityCheck}</p>
                         </div>
@@ -277,7 +279,7 @@ export function DeliverablesView() {
                           </ul>
                         )}
                       </div>
-                      <div className="text-[11.5px] tnum text-muted-foreground meta-points">
+                      <div className="text-meta tnum text-muted-foreground meta-points">
                         <span>{t("deliverables.created")} {new Date(d.createdAt).toLocaleString()}</span>
                         <span>{t("deliverables.size")} {humanSize(d.sizeBytes)}</span>
                         <span className="break-all">{d.filePath}</span>
@@ -356,7 +358,7 @@ export function DeliverablesView() {
             {sourceFiles.length > 0 && (
               <div className="space-y-1.5">
                 <Label>{t("deliverables.field.sources")}</Label>
-                <div className="border rounded-md max-h-40 overflow-y-auto thin-scroll divide-y">
+                <div className="border rounded-md max-h-40 overflow-y-auto scroll-fin divide-y">
                   {sourceFiles.map((f) => (
                     <label key={f.id} className="flex items-center gap-2.5 px-3 py-2 text-[12.5px] cursor-pointer hover:bg-secondary/50">
                       <Checkbox checked={selectedSources.has(f.id)} onCheckedChange={() => toggleSource(f.id)} />

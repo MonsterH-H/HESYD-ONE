@@ -1,13 +1,19 @@
 "use client";
 
+/**
+ * Choix typographiques assumés (échelle registre 13·16·20·25) : en-têtes de
+ * registre en text-[11px], densité de ligne en text-[11.5px]/[12px]/[12.5px],
+ * titres de Sheet en text-[18px] — densité de tableau conservée volontairement.
+ */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, PauseCircle, Pencil, PlayCircle, Search } from "lucide-react";
+import { Archive, Loader2, PauseCircle, Pencil, PlayCircle, Search, Users } from "lucide-react";
 import { useAppStore } from "@/store/app";
 import { useI18n } from "@/lib/i18n";
 import { useApi, apiGet } from "@/hooks/use-api";
 import { toast } from "@/hooks/use-toast";
 import { StatusPill } from "@/components/app/cachet";
 import { EtatErreur } from "@/components/app/etat-erreur";
+import { EtatVide } from "@/components/app/etat-vide";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -91,6 +97,8 @@ export function ClientsView() {
   const [ficheFiles, setFicheFiles] = useState<FileLite[] | null>(null);
 
   const [confirmArchive, setConfirmArchive] = useState<ClientRow | null>(null);
+  // Suspense/activation en cours — spinner sur le bouton (modèle automations-view)
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
   const refetch = useCallback(async () => {
     const d = await apiGet<{ clients: ClientRow[] }>("/api/clients");
@@ -172,12 +180,18 @@ export function ClientsView() {
   };
 
   const changerStatut = async (client: ClientRow) => {
+    setPendingId(client.id);
     const prochain = client.status === "ACTIF" ? "SUSPENDU" : "ACTIF";
     const res = await call<{ client: ClientRow }>(`/api/clients/${client.id}`, {
       method: "PATCH",
       body: JSON.stringify({ status: prochain }),
     });
-    if (res) refetch();
+    setPendingId(null);
+    if (res) {
+      // succès confirmé ; l'échec est déjà signalé par le toast destructif de useApi
+      toast({ description: t("toast.clientUpdated") });
+      refetch();
+    }
   };
 
   const archiver = async () => {
@@ -213,8 +227,8 @@ export function ClientsView() {
       {/* En-tête */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="font-display text-[20px] font-semibold">{t("clients.title")}</h2>
-          <p className="mt-1 text-[13px] text-muted-foreground">{t("clients.subtitle")}</p>
+          <h2 className="text-section font-display font-semibold">{t("clients.title")}</h2>
+          <p className="text-meta mt-1 text-muted-foreground">{t("clients.subtitle")}</p>
         </div>
         {peutGerer && <Button onClick={ouvrirCreation}>{t("clients.add")}</Button>}
       </div>
@@ -255,16 +269,16 @@ export function ClientsView() {
         )}
       </div>
 
-      {/* Registre */}
+      {/* Registre — sémantique ARIA alignée sur imports-view (row/columnheader/cell, bouton interne pour l'ouverture de fiche) */}
       <div className="registre mt-3 border-t border-[var(--bordure)]" role="table" aria-label={t("clients.title")}>
-        <div className="hidden h-9 items-center gap-4 px-2 text-[11px] uppercase tracking-[0.06em] text-muted-foreground md:flex">
-          <span className="w-28 shrink-0">{t("clients.code")}</span>
-          <span className="min-w-0 flex-1">{t("clients.name")}</span>
-          <span className="hidden w-52 shrink-0 lg:block">{t("clients.contact")}</span>
-          <span className="w-16 shrink-0 text-right">{t("clients.files")}</span>
-          <span className="w-16 shrink-0 text-right">{t("clients.groups")}</span>
-          <span className="w-28 shrink-0">{t("clients.status")}</span>
-          <span className="w-[168px] shrink-0 text-right">{t("common.actions")}</span>
+        <div role="row" className="text-[11px] hidden h-9 items-center gap-4 px-2 uppercase tracking-[0.06em] text-muted-foreground md:flex">
+          <span role="columnheader" className="w-28 shrink-0">{t("clients.code")}</span>
+          <span role="columnheader" className="min-w-0 flex-1">{t("clients.name")}</span>
+          <span role="columnheader" className="hidden w-52 shrink-0 lg:block">{t("clients.contact")}</span>
+          <span role="columnheader" className="w-16 shrink-0 text-right">{t("clients.files")}</span>
+          <span role="columnheader" className="w-16 shrink-0 text-right">{t("clients.groups")}</span>
+          <span role="columnheader" className="w-28 shrink-0">{t("clients.status")}</span>
+          <span role="columnheader" className="w-[168px] shrink-0 text-right">{t("common.actions")}</span>
         </div>
 
         {clients === null && chargement && !erreur && (
@@ -286,37 +300,41 @@ export function ClientsView() {
         )}
 
         {clientsFiltres && clientsFiltres.length === 0 && (
-          <p className="px-2 py-10 text-center text-[13.5px] text-muted-foreground">
-            {filtersActifs ? t("common.noResults") : t("clients.empty")}
-          </p>
+          <EtatVide icon={Users} title={filtersActifs ? t("common.noResults") : t("clients.empty")} />
         )}
 
         {clientsFiltres?.map((cl) => (
           <div
             key={cl.id}
-            role="button"
-            tabIndex={0}
+            role="row"
             onClick={() => ouvrirFiche(cl)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                ouvrirFiche(cl);
-              }
-            }}
-            className="registre-row flex min-h-12 cursor-pointer flex-wrap items-center gap-x-4 gap-y-1 px-2 py-2 md:flex-nowrap"
+            className="registre-row flex min-h-12 flex-wrap cursor-pointer items-center gap-x-4 gap-y-1 px-2 py-2 md:flex-nowrap"
             aria-label={`${cl.code} — ${cl.name}`}
           >
-            <span className="w-28 shrink-0 truncate text-[12.5px] tnum">{cl.code}</span>
-            <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium">{cl.name}</span>
-            <span className="hidden w-52 shrink-0 truncate text-[12px] text-muted-foreground lg:block">
+            <span role="cell" className="w-28 shrink-0 truncate text-[12.5px] tnum">{cl.code}</span>
+            <span role="cell" className="min-w-0 flex-1">
+              {/* Vrai bouton interne : la sémantique d'action reste accessible au clavier sans role="button" sur la ligne */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  ouvrirFiche(cl);
+                }}
+                className="text-meta block max-w-full truncate text-left font-medium underline-offset-2 hover:underline"
+                title={cl.name}
+              >
+                {cl.name}
+              </button>
+            </span>
+            <span role="cell" className="hidden w-52 shrink-0 truncate text-[12px] text-muted-foreground lg:block">
               {cl.contact ?? "—"}
             </span>
-            <span className="w-16 shrink-0 text-right text-[13px] tnum">{cl._count.files}</span>
-            <span className="w-16 shrink-0 text-right text-[13px] tnum">{cl.groups.length}</span>
-            <span className="w-28 shrink-0">
+            <span role="cell" className="text-meta w-16 shrink-0 text-right tnum">{cl._count.files}</span>
+            <span role="cell" className="text-meta w-16 shrink-0 text-right tnum">{cl.groups.length}</span>
+            <span role="cell" className="w-28 shrink-0">
               <PillStatutClient status={cl.status} />
             </span>
-            <span className="flex w-[168px] shrink-0 items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+            <span role="cell" className="flex w-[168px] shrink-0 items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
               {peutGerer && (
                 <>
                   <Button
@@ -333,11 +351,14 @@ export function ClientsView() {
                     variant="ghost"
                     size="icon"
                     className="h-11 w-11"
+                    disabled={pendingId === cl.id}
                     aria-label={cl.status === "ACTIF" ? t("clients.suspend") : t("clients.activate")}
                     title={cl.status === "ACTIF" ? t("clients.suspend") : t("clients.activate")}
                     onClick={() => changerStatut(cl)}
                   >
-                    {cl.status === "ACTIF" ? (
+                    {pendingId === cl.id ? (
+                      <Loader2 className="h-[18px] w-[18px] animate-spin" aria-hidden="true" />
+                    ) : cl.status === "ACTIF" ? (
                       <PauseCircle className="h-[18px] w-[18px]" aria-hidden="true" />
                     ) : (
                       <PlayCircle className="h-[18px] w-[18px]" aria-hidden="true" />
@@ -364,7 +385,7 @@ export function ClientsView() {
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent side="right" className="w-[420px] sm:max-w-[420px]">
           <SheetHeader>
-            <SheetTitle className="font-display text-[18px]">{edition ? t("clients.editTitle") : t("clients.add")}</SheetTitle>
+            <SheetTitle className="text-[18px] font-display">{edition ? t("clients.editTitle") : t("clients.add")}</SheetTitle>
             <SheetDescription>{edition ? `${edition.code} — ${edition.name}` : t("clients.subtitle")}</SheetDescription>
           </SheetHeader>
           <form
@@ -421,13 +442,13 @@ export function ClientsView() {
           {fiche && (
             <>
               <SheetHeader>
-                <SheetTitle className="font-display text-[18px]">{fiche.name}</SheetTitle>
+                <SheetTitle className="text-[18px] font-display">{fiche.name}</SheetTitle>
                 <SheetDescription className="tnum">
                   {t("clients.code")} {fiche.code} · {t("clients.created")} {new Date(fiche.createdAt).toLocaleDateString()}
                 </SheetDescription>
               </SheetHeader>
               <div className="scroll-fin flex-1 overflow-y-auto px-4 pb-6">
-                <dl className="space-y-2 text-[13px]">
+                <dl className="text-meta space-y-2">
                   <div className="flex justify-between gap-4">
                     <dt className="text-muted-foreground">{t("clients.contact")}</dt>
                     <dd className="text-right">{fiche.contact ?? "—"}</dd>
@@ -450,7 +471,7 @@ export function ClientsView() {
                     {fiche.groups.map((g) => (
                       <li key={g.id} className="flex h-12 items-center gap-3 border-b border-[var(--bordure)]">
                         <span className="w-28 shrink-0 truncate text-[12.5px] tnum">{g.code}</span>
-                        <span className="min-w-0 flex-1 truncate text-[13px]">{g.name}</span>
+                        <span className="text-meta min-w-0 flex-1 truncate">{g.name}</span>
                         <span className="shrink-0 text-[12px]" style={{ color: "var(--encre-2)" }}>
                           {t(`groups.collection.${g.collectionStatus}`)}
                         </span>
@@ -474,7 +495,7 @@ export function ClientsView() {
                           className="flex h-12 w-full items-center gap-3 px-1 text-left"
                           title={f.originalFilename}
                         >
-                          <span className="min-w-0 flex-1 truncate text-[13px]">{f.originalFilename}</span>
+                          <span className="text-meta min-w-0 flex-1 truncate">{f.originalFilename}</span>
                           <StatusPill status={f.status} label={t(`status.${f.status}`)} />
                           <time className="shrink-0 text-[11.5px] tnum text-muted-foreground" dateTime={f.createdAt}>
                             {new Date(f.createdAt).toLocaleDateString()}

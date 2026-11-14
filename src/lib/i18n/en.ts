@@ -439,6 +439,7 @@ export const en: Record<string, string> = {
   "api.trop_de_tentatives": "Too many attempts: try again later.",
   "api.credits_insuffisants": "Insufficient credits: the action is queued, no data is lost.",
   "common.retry": "Retry",
+  "common.refresh": "Refresh",
   "common.erreur_chargement": "Unable to load",
   "common.erreur_chargement_detail": "The list could not be retrieved. No data is lost.",
   "common.errorLoadDashboard": "Unable to load the dashboard: check your connection and try again. No data is lost.",

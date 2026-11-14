@@ -1,12 +1,18 @@
 "use client";
 
+/**
+ * Choix typographiques assumés (échelle registre 13·16·20·25) : en-têtes de
+ * registre en text-[11px], densité de ligne en text-[11.5px]/[12px]/[12.5px],
+ * titres de Sheet en text-[18px] — densité de tableau conservée volontairement.
+ */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, PauseCircle, Pencil, PlayCircle, Search } from "lucide-react";
+import { Archive, Loader2, MessageSquare, PauseCircle, Pencil, PlayCircle, Search } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useApi, apiGet } from "@/hooks/use-api";
 import { toast } from "@/hooks/use-toast";
 import { useAppStore } from "@/store/app";
 import { EtatErreur } from "@/components/app/etat-erreur";
+import { EtatVide } from "@/components/app/etat-vide";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -113,6 +119,8 @@ export function GroupsView() {
   const [envoi, setEnvoi] = useState(false);
 
   const [confirmArchive, setConfirmArchive] = useState<GroupRow | null>(null);
+  // Suspension/activation en cours — spinner sur le bouton (modèle automations-view)
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
   const refetch = useCallback(async () => {
     const d = await apiGet<{ groups: GroupRow[]; whatsappConfigured: boolean }>("/api/groups");
@@ -191,12 +199,18 @@ export function GroupsView() {
   };
 
   const changerStatut = async (g: GroupRow) => {
+    setPendingId(g.id);
     const prochain = g.status === "ACTIF" ? "SUSPENDU" : "ACTIF";
     const res = await call<{ group: GroupRow }>(`/api/groups/${g.id}`, {
       method: "PATCH",
       body: JSON.stringify({ status: prochain }),
     });
-    if (res) refetch();
+    setPendingId(null);
+    if (res) {
+      // succès confirmé ; l'échec est déjà signalé par le toast destructif de useApi
+      toast({ description: t("toast.groupUpdated") });
+      refetch();
+    }
   };
 
   const archiver = async () => {
@@ -227,8 +241,8 @@ export function GroupsView() {
     <div className="mx-auto max-w-[1100px]">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="font-display text-[20px] font-semibold">{t("groups.title")}</h2>
-          <p className="mt-1 text-[13px] text-muted-foreground">{t("groups.subtitle")}</p>
+          <h2 className="text-section font-display font-semibold">{t("groups.title")}</h2>
+          <p className="text-meta mt-1 text-muted-foreground">{t("groups.subtitle")}</p>
         </div>
         {peutGerer && <Button onClick={ouvrirCreation}>{t("groups.add")}</Button>}
       </div>
@@ -292,15 +306,15 @@ export function GroupsView() {
       </div>
 
       <div className="registre mt-3 border-t border-[var(--bordure)]" role="table" aria-label={t("groups.title")}>
-        <div className="hidden h-9 items-center gap-4 px-2 text-[11px] uppercase tracking-[0.06em] text-muted-foreground md:flex">
-          <span className="w-24 shrink-0">{t("clients.code")}</span>
-          <span className="min-w-0 flex-1">{t("clients.name")}</span>
-          <span className="hidden w-44 shrink-0 lg:block">{t("groups.client")}</span>
-          <span className="w-36 shrink-0">{t("groups.source")}</span>
-          <span className="w-36 shrink-0">{t("groups.collection")}</span>
-          <span className="hidden w-14 shrink-0 text-right sm:block">{t("clients.files")}</span>
-          <span className="hidden w-28 shrink-0 xl:block">{t("groups.lastEvent")}</span>
-          <span className="w-[104px] shrink-0 text-right">{t("common.actions")}</span>
+        <div role="row" className="text-[11px] hidden h-9 items-center gap-4 px-2 uppercase tracking-[0.06em] text-muted-foreground md:flex">
+          <span role="columnheader" className="w-24 shrink-0">{t("clients.code")}</span>
+          <span role="columnheader" className="min-w-0 flex-1">{t("clients.name")}</span>
+          <span role="columnheader" className="hidden w-44 shrink-0 lg:block">{t("groups.client")}</span>
+          <span role="columnheader" className="w-36 shrink-0">{t("groups.source")}</span>
+          <span role="columnheader" className="w-36 shrink-0">{t("groups.collection")}</span>
+          <span role="columnheader" className="hidden w-14 shrink-0 text-right sm:block">{t("clients.files")}</span>
+          <span role="columnheader" className="hidden w-28 shrink-0 xl:block">{t("groups.lastEvent")}</span>
+          <span role="columnheader" className="w-[168px] shrink-0 text-right">{t("common.actions")}</span>
         </div>
 
         {groups === null && chargement && !erreur && (
@@ -321,30 +335,29 @@ export function GroupsView() {
         )}
 
         {groupesFiltres && groupesFiltres.length === 0 && (
-          <p className="px-2 py-10 text-center text-[13.5px] text-muted-foreground">
-            {filtersActifs ? t("common.noResults") : t("groups.empty")}
-          </p>
+          <EtatVide icon={MessageSquare} title={filtersActifs ? t("common.noResults") : t("groups.empty")} />
         )}
 
         {groupesFiltres?.map((g) => (
           <div
             key={g.id}
+            role="row"
             className="registre-row flex min-h-12 flex-wrap items-center gap-x-4 gap-y-1 px-2 py-2 md:flex-nowrap"
           >
-            <span className="w-24 shrink-0 truncate text-[12.5px] tnum">{g.code}</span>
-            <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium">{g.name}</span>
-            <span className="hidden w-44 shrink-0 truncate text-[12.5px] text-muted-foreground lg:block">
+            <span role="cell" className="w-24 shrink-0 truncate text-[12.5px] tnum">{g.code}</span>
+            <span role="cell" className="text-meta min-w-0 flex-1 truncate font-medium">{g.name}</span>
+            <span role="cell" className="hidden w-44 shrink-0 truncate text-[12.5px] text-muted-foreground lg:block">
               {g.client?.name ?? "—"}
             </span>
-            <span className="w-36 shrink-0 truncate text-[12.5px]">{t(`groups.source.${g.sourceType}`)}</span>
-            <span className="w-36 shrink-0">
+            <span role="cell" className="w-36 shrink-0 truncate text-[12.5px]">{t(`groups.source.${g.sourceType}`)}</span>
+            <span role="cell" className="w-36 shrink-0">
               <PastilleCollecte statut={g.collectionStatus} />
             </span>
-            <span className="hidden w-14 shrink-0 text-right text-[13px] tnum sm:block">{g._count.files}</span>
-            <span className="hidden w-28 shrink-0 text-right text-[12px] tnum text-muted-foreground xl:block">
+            <span role="cell" className="text-meta hidden w-14 shrink-0 text-right tnum sm:block">{g._count.files}</span>
+            <span role="cell" className="hidden w-28 shrink-0 text-right text-[12px] tnum text-muted-foreground xl:block">
               {g.lastEventAt ? new Date(g.lastEventAt).toLocaleDateString() : "—"}
             </span>
-            <span className="ml-auto flex w-[104px] shrink-0 items-center justify-end md:ml-0">
+            <span role="cell" className="ml-auto flex w-[168px] shrink-0 items-center justify-end gap-1 md:ml-0">
               {peutGerer && (
                 <>
                   <Button
@@ -361,11 +374,14 @@ export function GroupsView() {
                     variant="ghost"
                     size="icon"
                     className="h-11 w-11"
+                    disabled={pendingId === g.id}
                     aria-label={g.status === "ACTIF" ? t("groups.suspend") : t("groups.activate")}
                     title={g.status === "ACTIF" ? t("groups.suspend") : t("groups.activate")}
                     onClick={() => changerStatut(g)}
                   >
-                    {g.status === "ACTIF" ? (
+                    {pendingId === g.id ? (
+                      <Loader2 className="h-[18px] w-[18px] animate-spin" aria-hidden="true" />
+                    ) : g.status === "ACTIF" ? (
                       <PauseCircle className="h-[18px] w-[18px]" aria-hidden="true" />
                     ) : (
                       <PlayCircle className="h-[18px] w-[18px]" aria-hidden="true" />
@@ -374,7 +390,7 @@ export function GroupsView() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-11 w-11 hidden sm:inline-flex"
+                    className="h-11 w-11"
                     aria-label={t("groups.archive")}
                     title={t("groups.archive")}
                     onClick={() => setConfirmArchive(g)}
@@ -392,7 +408,7 @@ export function GroupsView() {
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent side="right" className="w-[440px] sm:max-w-[440px]">
           <SheetHeader>
-            <SheetTitle className="font-display text-[18px]">{edition ? t("groups.editTitle") : t("groups.add")}</SheetTitle>
+            <SheetTitle className="text-[18px] font-display">{edition ? t("groups.editTitle") : t("groups.add")}</SheetTitle>
             <SheetDescription>{edition ? edition.name : t("groups.subtitle")}</SheetDescription>
           </SheetHeader>
           <form

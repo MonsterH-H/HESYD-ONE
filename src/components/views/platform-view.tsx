@@ -18,7 +18,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { EtatErreur } from "@/components/app/etat-erreur";
+import { EtatVide } from "@/components/app/etat-vide";
+import { Search, SlidersHorizontal, Building2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Sheet,
@@ -136,6 +138,7 @@ function formatOctets(bytes: number) {
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
+    // Micro-label de densité volontaire : 10.5px < meta (13px), hors échelle registre assumé
     <h2 className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
       {children}
     </h2>
@@ -148,7 +151,7 @@ function StatutOrg({ status }: { status: string }) {
   const label = t(`platform.status.${status}`, status);
   if (status === "ACTIF") {
     return (
-      <span className="inline-flex items-center gap-1.5 text-[11.5px] font-medium whitespace-nowrap" style={{ color: "var(--ruban)" }}>
+      <span className="inline-flex items-center gap-1.5 text-meta font-medium whitespace-nowrap" style={{ color: "var(--ruban)" }}>
         <span className="h-2 w-2 rounded-full" style={{ background: "var(--ruban)" }} aria-hidden="true" />
         {label}
       </span>
@@ -156,7 +159,7 @@ function StatutOrg({ status }: { status: string }) {
   }
   if (status === "ESSAI_EXPIRE") {
     return (
-      <span className="inline-flex items-center gap-1.5 text-[11.5px] font-medium whitespace-nowrap" style={{ color: "var(--carton)" }}>
+      <span className="inline-flex items-center gap-1.5 text-meta font-medium whitespace-nowrap" style={{ color: "var(--carton)" }}>
         <span className="h-2 w-2 rounded-full" style={{ background: "var(--carton)" }} aria-hidden="true" />
         {label}
       </span>
@@ -164,7 +167,7 @@ function StatutOrg({ status }: { status: string }) {
   }
   if (status === "SUSPENDU" || status === "RESILIE") {
     return (
-      <span className="inline-flex items-center gap-1.5 text-[11.5px] font-medium whitespace-nowrap" style={{ color: "var(--erreur)" }}>
+      <span className="inline-flex items-center gap-1.5 text-meta font-medium whitespace-nowrap" style={{ color: "var(--erreur)" }}>
         <span className="relative h-2 w-2" aria-hidden="true">
           <span className="absolute inset-x-0 top-1/2 h-[2px] -translate-y-1/2" style={{ background: "var(--erreur)" }} />
           <span className="absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2" style={{ background: "var(--erreur)" }} />
@@ -175,14 +178,14 @@ function StatutOrg({ status }: { status: string }) {
   }
   if (status === "PURGE") {
     return (
-      <span className="inline-flex items-center gap-1.5 text-[11.5px] font-medium whitespace-nowrap opacity-60" style={{ color: "var(--encre-3)" }}>
+      <span className="inline-flex items-center gap-1.5 text-meta font-medium whitespace-nowrap opacity-60" style={{ color: "var(--encre-3)" }}>
         <span className="h-2 w-2 rounded-full border-2" style={{ borderColor: "var(--encre-3)" }} aria-hidden="true" />
         {label}
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 text-[11.5px] font-medium whitespace-nowrap" style={{ color: "var(--encre-2)" }}>
+    <span className="inline-flex items-center gap-1.5 text-meta font-medium whitespace-nowrap" style={{ color: "var(--encre-2)" }}>
       <span className="h-2 w-2 rounded-full border-2" style={{ borderColor: "var(--encre-2)" }} aria-hidden="true" />
       {label}
     </span>
@@ -348,22 +351,15 @@ export function PlatformView() {
       {/* En-tête exploitant — même charte, ton légèrement distinct */}
       <div className="rounded-md border p-5 space-y-2" style={{ background: "var(--papier-leve)", borderColor: "var(--bordure)" }}>
         <div className="flex flex-wrap items-center gap-2.5">
-          <h2 className="font-display text-[22px] font-semibold">{t("platform.title")}</h2>
+          <h2 className="font-display text-section font-semibold">{t("platform.title")}</h2>
           <Badge className="text-[10.5px] uppercase tracking-[0.08em]" style={{ background: "var(--cachet-fond)", color: "var(--cachet)" }}>
             {t("platform.badge")}
           </Badge>
         </div>
-        <p className="text-[13px] leading-relaxed text-muted-foreground max-w-[80ch]">{t("platform.subtitle")}</p>
+        <p className="text-meta leading-relaxed text-muted-foreground max-w-[80ch]">{t("platform.subtitle")}</p>
       </div>
 
-      {etat === "error" && (
-        <div className="border rounded-md px-4 py-6 space-y-3" style={{ background: "var(--erreur-fond)", borderColor: "var(--bordure)" }} role="alert">
-          <p className="text-[13.5px]" style={{ color: "var(--erreur)" }}>{t("common.errorNetwork")}</p>
-          <Button variant="outline" className="h-11" onClick={() => void load()}>
-            {t("common.retry")}
-          </Button>
-        </div>
-      )}
+      {etat === "error" && <EtatErreur onRetry={() => void load()} />}
 
       {etat === "loading" && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -401,12 +397,12 @@ export function PlatformView() {
               </div>
               {data.services.map((s) => (
                 <div key={s.connector} role="row" className="registre-row flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2.5 min-h-[52px]">
-                  <span className="min-w-0 flex-1 text-[13.5px] font-medium truncate">
+                  <span className="min-w-0 flex-1 text-meta font-medium truncate">
                     {s.connector === "STORAGE_LOCAL" ? t("platform.service.STORAGE_LOCAL") : t(`admin.integrations.${s.connector}`, s.connector)}
                   </span>
-                  <span className="w-24 shrink-0 text-right text-[13px] tnum" style={{ color: "var(--ruban)" }}>{s.connectes}</span>
-                  <span className="w-24 shrink-0 text-right text-[13px] tnum text-muted-foreground">{s.nonConfigures}</span>
-                  <span className="w-24 shrink-0 text-right text-[13px] tnum" style={s.erreurs > 0 ? { color: "var(--erreur)" } : undefined}>{s.erreurs}</span>
+                  <span className="w-24 shrink-0 text-right text-meta tnum" style={{ color: "var(--ruban)" }}>{s.connectes}</span>
+                  <span className="w-24 shrink-0 text-right text-meta tnum text-muted-foreground">{s.nonConfigures}</span>
+                  <span className="w-24 shrink-0 text-right text-meta tnum" style={s.erreurs > 0 ? { color: "var(--erreur)" } : undefined}>{s.erreurs}</span>
                   <span className="w-28 shrink-0 text-right text-[12.5px] tnum text-muted-foreground">{s.totalOrganisations}</span>
                 </div>
               ))}
@@ -430,7 +426,7 @@ export function PlatformView() {
                   </span>
                 ))}
               </div>
-              <p className="text-[11.5px] leading-relaxed text-muted-foreground">{data.environnement.noteHonnête}</p>
+              <p className="text-meta leading-relaxed text-muted-foreground">{data.environnement.noteHonnête}</p>
             </div>
           </section>
 
@@ -438,7 +434,7 @@ export function PlatformView() {
           <section aria-label={t("platform.cancellations.title")} className="space-y-3">
             <SectionTitle>{t("platform.cancellations.title")}</SectionTitle>
             {data.cancellations.length === 0 ? (
-              <p className="text-[13px] text-muted-foreground border rounded-md bg-card px-4 py-5">{t("platform.cancellations.empty")}</p>
+              <EtatVide icon={Building2} title={t("platform.cancellations.empty")} compact />
             ) : (
               <div className="grid gap-3 md:grid-cols-2">
                 {data.cancellations.map((o) => (
@@ -496,13 +492,13 @@ export function PlatformView() {
               </div>
 
               {orgsPage.length === 0 && (
-                <p className="text-[13px] text-muted-foreground px-4 py-6">{t("platform.orgs.empty")}</p>
+                <EtatVide icon={Building2} title={t("platform.orgs.empty")} compact />
               )}
 
               {orgsPage.map((o) => (
                 <div key={o.id} role="row" className="registre-row flex flex-wrap items-center gap-x-4 gap-y-1.5 px-3 py-2.5 min-h-[60px]">
                   <div className="min-w-0 flex-1">
-                    <div className="text-[13.5px] font-medium truncate flex items-center gap-2">
+                    <div className="text-meta font-medium truncate flex items-center gap-2">
                       <span className="truncate">{o.name}</span>
                       <StatutOrg status={o.status} />
                     </div>
@@ -517,11 +513,11 @@ export function PlatformView() {
                     </div>
                   </div>
                   <span className="w-32 shrink-0 text-[12.5px] tnum truncate">{o.planCode}</span>
-                  <span className="w-20 shrink-0 text-right text-[13px] tnum">{o.users}</span>
-                  <span className="w-24 shrink-0 text-right text-[13px] tnum">{o.documents}</span>
+                  <span className="w-20 shrink-0 text-right text-meta tnum">{o.users}</span>
+                  <span className="w-24 shrink-0 text-right text-meta tnum">{o.documents}</span>
                   <span className="w-24 shrink-0 text-right text-[12.5px] tnum">{formatOctets(o.storageBytes)}</span>
-                  <span className="w-20 shrink-0 text-right text-[13px] tnum">{o.credits}</span>
-                  <span className="w-28 shrink-0 text-right text-[11.5px] tnum text-muted-foreground">
+                  <span className="w-20 shrink-0 text-right text-meta tnum">{o.credits}</span>
+                  <span className="w-28 shrink-0 text-right text-meta tnum text-muted-foreground">
                     {o.lastActivityAt ? new Date(o.lastActivityAt).toLocaleDateString() : "—"}
                   </span>
                   <span className="w-14 shrink-0 flex justify-end">
@@ -562,7 +558,7 @@ export function PlatformView() {
                 <Button variant="outline" className="h-9 text-[12px]" disabled={pageSure <= 1} onClick={() => setPage((p) => Math.max(1, Math.min(totalPages, p - 1)))}>
                   {t("common.prev")}
                 </Button>
-                <span className="text-[11.5px] tnum text-muted-foreground">{pageSure} / {totalPages}</span>
+                <span className="text-meta tnum text-muted-foreground">{pageSure} / {totalPages}</span>
                 <Button variant="outline" className="h-9 text-[12px]" disabled={pageSure >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
                   {t("common.next")}
                 </Button>
@@ -586,11 +582,11 @@ export function PlatformView() {
             <>
             <div className="grid flex-1 gap-4 px-4">
               <div className="rounded-md border px-3 py-2.5 flex items-center justify-between gap-3" style={{ background: "var(--papier-leve)", borderColor: "var(--bordure)" }}>
-                <span className="text-[13.5px] font-medium truncate">{geste.org.name}</span>
+                <span className="text-meta font-medium truncate">{geste.org.name}</span>
                 <StatutOrg status={geste.org.status} />
               </div>
 
-              <div className="text-[13px] font-medium">{t(`platform.geste.${gesteLibelle(geste.action)}`)}</div>
+              <div className="text-meta font-medium">{t(`platform.geste.${gesteLibelle(geste.action)}`)}</div>
 
               {geste.action === "PROLONGER_ESSAI" && (
                 <div className="grid gap-1.5">

@@ -15,7 +15,7 @@ export type PillShape = "dot" | "ring" | "cross";
 export function Pill({ tone, shape = "dot", label }: { tone: PillTone; shape?: PillShape; label: string }) {
   const color = TONES[tone];
   return (
-    <span className="inline-flex items-center gap-1.5 text-[11.5px] font-medium whitespace-nowrap" style={{ color }}>
+    <span className="inline-flex items-center gap-1.5 text-meta font-medium whitespace-nowrap" style={{ color }}>
       {shape === "dot" && <span className="h-2 w-2 rounded-full shrink-0" style={{ background: color }} aria-hidden="true" />}
       {shape === "ring" && <span className="h-2 w-2 rounded-full border-2 shrink-0" style={{ borderColor: color }} aria-hidden="true" />}
       {shape === "cross" && (

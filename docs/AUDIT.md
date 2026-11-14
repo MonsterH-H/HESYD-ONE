@@ -571,3 +571,58 @@ Les statuts d'intégration du §14 restent inchangés : aucune donnée externe n
 - `bun update` global (dans les ranges) ;
 - **Audit : 101 vulnérabilités (4 critiques, 56 high) → 35 (0 critique, 23 high).** Les 23 restantes sont transitives et bornées par les upstream — chaînes dev-only (eslint → flatted/browserslist/brace-expansion, prisma CLI → defu/deepmerge-ts) ou portée runtime non exploitable dans ce produit (exceljs → archiver → glob sur chemins de zip ; recharts → lodash interne). **Aucun correctif disponible sans montée majeure cassante** ; à reprendre lors des prochaines montées de version d'upstream.
 - Corrections lint rendues nécessaires par eslint-plugin-react-hooks 7.1.1 (règle `set-state-in-effect` durcie) : frontières microtask/rAF vérifiées par sondes empiriques (onboarding-wizard, carousel vendu, loaders admin/files/platform), `useSyncExternalStore` pour `use-mobile`, reset de page déplacé dans le handler de recherche (platform-view), justification en ligne pour la redirection OAuth pleine page (auth-view). `bun run lint` : 0 erreur, 0 warning ; `npx tsc --noEmit` : 0 erreur.
+
+## 16. Session refonte haute gamme + durcissement sécurité (14/11/2026, soirée)
+
+### 16.1 Audit sécurité exhaustif (62 routes API, lecture seule, agent dédié)
+
+**Verdict : 0 faille CRITIQUE d'authentification, 0 IDOR.** 62 fichiers `route.ts` lus intégralement + primitives (`auth.ts`, `rate-limit.ts`, `signed-links.ts`, `auth-tokens.ts`, `platform.ts`, connecteurs, stockage, agent). Bilan : 45 routes en session, 10 publiques de flux d'authentification, 2 webhooks signés (Polar Standard Webhooks, WhatsApp X-Hub-Signature-256), `scheduler/tick` + `health POST` signés HMAC n8n, `plans`/`/api`/`health GET` publics sans donnée métier. Les 11 familles de routes `[id]` filtrent toutes `id` **et** `organizationId`. Signatures webhooks vérifiées **avant toute écriture**, idempotence atomique par contrainte unique DB. Points forts confirmés : scrypt + `timingSafeEqual` systématiques, sessions DB token haché SHA-256, secrets AES-256-GCM au repos, liens signés HMAC TTL 24 h, anti-traversal `path.relative`, quotas serveur réels, verrouillage de connexion persisté.
+
+**Failles corrigées dans la foulée (preuves code) :**
+
+| Priorité | Faille | Correctif appliqué |
+|---|---|---|
+| **MAJEURE** | Élévation de privilège via appairage WhatsApp : code EN_ATTENTE visible par LECTEUR (`whatsapp/pairing/route.ts`) + agent exécuté avec le rôle du créateur du code | `code` masqué pour LECTEUR ; `tryPairByCode` recontrôle le rôle du membership au moment de l'appairage (code de LECTEUR → jamais ACTIF) ; `resolvePairingRuntime()` relecture du rôle réel à chaque message, garde LECTEUR de `runner.ts` appliquée |
+| MINEURE | Import XLSX non plafonné (DoS par ADMIN) | `rows.slice(0, 5000)` symétrique au CSV |
+| MINEURE | Fuite de messages d'infrastructure (`Prisma`, chemins, stack) via `api.ts` | Liste noire `INFRA_ERROR_PATTERNS` → `erreur_interne` 500 + `console.error` serveur ; codes métier snake_case préservés (80+ sites i18n dépendants) |
+| MINEURE | Replai d'idempotence Polar faible (`raw.length`) | SHA-256 du corps brut tronqué 32 hex quand `webhook-id` absent |
+| MINEURE | Route index `/api` « Hello, world! » inutilement exposée | Manifeste neutre `{"service":"hesyd-one","status":"ok"}` |
+| MINEURE | Branche consommation de token `verify-email` sans débit | `consumeRateLimitWindow("VERIFY_TOKEN:<ip>", 10/15 min)` avant `consumeAuthToken` |
+
+(Énumération de comptes register/login : trade-off documenté conservé — commentaire existant.)
+
+### 16.2 Audit UI/UX des 4 espaces (agent dédié, ~13 700 lignes) + refonte appliquée
+
+Scores avant refonte : **A public 9/10 · B organisation 7,5/10 · C invité 8/10 · D super-admin 7,5/10** ; parité i18n vérifiée 928/928 clés fr/en. Corrections appliquées par 4 agents parallèles (périmètres de fichiers disjoints) :
+
+- **Composants partagés nouveaux** : `EtatVide` (icône fine encadrée + titre + CTA, même vocabulaire que `Cachet`/`EtatErreur`) adopté par les 13 vues ; token `--ombre-cachet` (clair+sombre) exposé en utility `shadow-cachet` — fin des ombres rgba hardcodées ;
+- **Ossature** (`app-shell`) : header `bg-background` opaque (fin du glassmorphism contraire au système), h1 `text-section`, **profil et jauge de crédits accessibles mobile** (avatar 44 px + jauge fine dans la nav mobile), ARIA complet des jauges (`aria-valuemin/max`, libellés), commutateurs d'espaces `role="group"`+`aria-pressed`, nav mobile `<nav aria-label>`+`aria-current` ;
+- **Registres** (clients/groups/files) : sémantique `role="row"`/`role="cell"`/`role="columnheader"` homogène (modèle imports/platform), bouton réel dans la cellule nom (action au clavier, clic pleine ligne conservé) ;
+- **États harmonisés** : `EtatErreur` remplace les 3 états d'erreur artisanaux (overview, finances, platform) ; `Skeleton` structurés au gabarit réel remplacent les `animate-pulse` bruts (inbox, approvals, imports) ; `EtatVide` partout (icônes Lucide adaptées par domaine) ;
+- **Micro-feedback** : suspendre/activer clients & groups obtiennent `pendingId` + spinner + toast (modèle automations) ;
+- **A11y ciblée** : `thin-scroll` (classe inexistante) → `scroll-fin` ×3, tabs admin `aria-controls`+`role="tabpanel"`×6, badge notifications annonce les non-lus, `Chaîne de garde` i18nisé dans `Cachet`, jeton d'invitation masqué (`inv-…••••`, copie complète intacte) ;
+- **Convergence typographique** : échelle du registre appliquée aux titres de vue (`text-section font-display`) et aux tailles arbitraires listées ; micro-labels de densité conservés et documentés (1 commentaire par fichier) ;
+- **Espace public** : CTA « Essai » visible mobile (version compacte), ombres tokenisées, `<img>` → `next/image` (sceau 1024×1024 mesuré, `sizes`+`priority` au hero) ;
+- **Palette de commandes enrichie** : bascule thème + langue + déconnexion branchés sur mécanismes réels (aucune action fictive).
+
+### 16.3 Régression CRITIQUE découverte et corrigée en vérification
+
+`src/app/api/files/upload/route.ts` **à nouveau absent du working tree** (suppression jamais commitée post-§15, la restauration précédente n'avait pas survécu) alors que `files-view.tsx:279` appelle `POST /api/files/upload` → **404 sur tout dépôt web**. Restaurée depuis `git HEAD` et **commitée** pour rendre la régression impossible. Dépôt réel re-vérifié au navigateur (16.4).
+
+### 16.4 Vérifications d'exécution de la session (preuves navigateur réelles)
+
+- `npx tsc --noEmit` : **0 erreur** · `bun run lint` : **0 erreur, 0 warning** (après exclusion `.claude/**` des skills installés).
+- Parcours exécutés via agent-browser : landing (footer bas de page naturel, header sticky) → **inscription réelle** (« Org Verification », 500 crédits d'essai) → wizard 5 étapes → Clients (client « Général » provisioning, pill Actif) → Finances (cartes VALIDÉ/À VÉRIFIER/EXTRAIT honnêtes à 0, `EtatVide` + CTA) → Fichiers (`EtatVide` + CTA) → **dépôt réel** `facture-test.txt` → **archivage confirmé** (fs.stat + sha256 re-vérifié, chemin Client/Groupe/Catégorie/Année/Mois) → fiche détail : classification « Facture fournisseur · Confiance 100 % », résumé IA, chaîne de garde horodatée Reçu→Classé→Archivé→Indexé, champs extraits (date/montant/émetteur à 100 %) → **crédits réellement décomptés 500 → 408** → mobile 375 px (avatar profil, jauge crédits, nav horizontale) → thème sombre « encre » cohérent → **aucune erreur console**.
+- L'intégralité du parcours produit promis (dépôt → classification → archivage prouvé → extraction financière jamais auto-validée) fonctionne en réel.
+
+### 16.5 État global inchangé
+
+Les statuts d'intégration des §14-15 restent inchangés : aucune donnée externe nouvelle fournie, rien ne passe à « CONNECTÉ » sans preuve réelle. La refonte est UI/UX + sécurité + correctifs — architecture et technologies verrouillées intactes (Google Document AI unique OCR, Azure AI Foundry GLM explicite textuel, Drive honnête, Polar, Resend, n8n, WhatsApp Cloud API).
+
+### 16.6 Résiduels documentés (passe 2 possible)
+
+- Micro-labels `text-[10.5–12.5px]` restants hors périmètre refondu (documentés par commentaire) ;
+- Navigation clavier ←/→ des tabs admin (aria-controls posé) ;
+- `document.title` par vue (SPA) ;
+- Observation fonctionnelle préexistante : premier appairage d'un numéro WhatsApp neuf non reconnu par `tryPairByCode` (garde `findActivePairingByPhone` précède) — à qualifier séparément si le parcours « premier appairage » est attendu ;
+- 23 vulnérabilités transitives dev-only (cf. §15.7) bornées par upstream.

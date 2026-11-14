@@ -1,5 +1,11 @@
 "use client";
 
+/**
+ * Note typographique (audit UI — échelle registre) : le badge d'espace du
+ * header (« OPÉRATEUR / PLATEFORME », sur-titre majuscule espacé, non
+ * interactif) utilise volontairement un micro-label de 10,5 px hors échelle.
+ */
+
 import { useEffect, useCallback, useRef } from "react";
 import { useAppStore, type ViewId, type AdminTab } from "@/store/app";
 import { useI18n } from "@/lib/i18n";
@@ -59,6 +65,43 @@ const ADMIN_NAV: NavItem[] = [
   { id: "admin", key: "admin.security", icon: BrainCircuit, tab: "security" },
   { id: "admin", key: "admin.settings", icon: Settings2, tab: "settings" },
 ];
+
+/**
+ * Bloc crédits — nombre + jauge sur le quota RÉEL du plan (audit UI P1).
+ * Partagé barre latérale (jauge 6 px) / navigation mobile (jauge fine 4 px).
+ * ARIA complet : bornes 0..total, valeur restante, libellé et équivalent
+ * textuel (title « N crédits ») — jamais de jauge mensongère sans plan connu.
+ */
+function BlocCredits({ fine = false }: { fine?: boolean }) {
+  const session = useAppStore((s) => s.session);
+  const { t } = useI18n();
+  const credits = session?.credits ?? 0;
+  const total = session?.planMonthlyCredits ?? 0;
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between text-[12px]">
+        <span className="text-muted-foreground">{t("common.credits")}</span>
+        <span className="tnum font-display font-semibold">{credits}</span>
+      </div>
+      {total > 0 && (
+        <div
+          className={`rounded-full bg-secondary overflow-hidden ${fine ? "h-1" : "h-1.5"}`}
+          role="progressbar"
+          aria-label={t("overview.stat.credits")}
+          aria-valuemin={0}
+          aria-valuemax={total}
+          aria-valuenow={credits}
+          title={`${credits} ${t("common.credits")}`}
+        >
+          <div
+            className="h-full rounded-full bg-cachet transition-[width] duration-300"
+            style={{ width: `${Math.max(2, Math.min(100, (credits / total) * 100))}%` }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function AppShell() {
   const session = useAppStore((s) => s.session);
@@ -167,18 +210,18 @@ export function AppShell() {
 
           {isPlatformAdmin && <Separator />}
 
-          {/* Les deux espaces — commutateur explicite */}
+          {/* Les deux espaces — commutateur explicite (groupe exclusif, pas des
+              onglets : le contenu n'est pas un tabpanel dédié) */}
           <div className="px-5 py-4">
             <div
-              role="tablist"
+              role="group"
               aria-label={t("space.switcher")}
               className="grid grid-cols-2 gap-0 rounded-md border border-bordure bg-papier-creuse p-0.5"
             >
               <button
-                role="tab"
-                aria-selected={espaceActif === "documents"}
+                aria-pressed={espaceActif === "documents"}
                 onClick={() => setSpace("documents")}
-                className={`flex items-center justify-center gap-1.5 rounded-[4px] px-2 py-1.5 text-[11.5px] font-medium transition-colors ${
+                className={`flex items-center justify-center gap-1.5 rounded-[4px] px-2 py-1.5 text-meta font-medium transition-colors ${
                   espaceActif === "documents" ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -187,10 +230,9 @@ export function AppShell() {
               </button>
               {canAdmin && (
                 <button
-                  role="tab"
-                  aria-selected={espaceActif === "operator"}
+                  aria-pressed={espaceActif === "operator"}
                   onClick={() => setSpace("operator")}
-                  className={`flex items-center justify-center gap-1.5 rounded-[4px] px-2 py-1.5 text-[11.5px] font-medium transition-colors ${
+                  className={`flex items-center justify-center gap-1.5 rounded-[4px] px-2 py-1.5 text-meta font-medium transition-colors ${
                     espaceActif === "operator" ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
@@ -225,26 +267,9 @@ export function AppShell() {
             })}
           </ul>
           <Separator />
-          <div className="p-4 space-y-3">
-            <div className="flex items-center justify-between text-[12px]">
-              <span className="text-muted-foreground">{t("common.credits")}</span>
-              <span className="tnum font-display font-semibold">{session?.credits ?? 0}</span>
-            </div>
-            {/* Jauge sur le quota RÉEL du plan (audit UI P1 — plus de /500 en dur) ;
-                sans plan connu, le nombre seul est affiché : jamais de jauge mensongère. */}
-            {session?.planMonthlyCredits ? (
-              <div
-                className="h-1.5 rounded-full bg-secondary overflow-hidden"
-                role="progressbar"
-                aria-valuenow={Math.min(100, Math.round(((session?.credits ?? 0) / session.planMonthlyCredits) * 100))}
-              >
-                <div
-                  className="h-full rounded-full bg-cachet transition-[width] duration-300"
-                  style={{ width: `${Math.max(2, Math.min(100, ((session?.credits ?? 0) / session.planMonthlyCredits) * 100))}%` }}
-                />
-              </div>
-            ) : null}
-            <div className="flex items-center justify-between gap-2">
+          <div className="p-4">
+            <BlocCredits />
+            <div className="flex items-center justify-between gap-2 mt-3">
               <button
                 type="button"
                 onClick={() => setProfileOpen(true)}
@@ -278,7 +303,9 @@ export function AppShell() {
 
         {/* Contenu */}
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b">
+          {/* Fond opaque : design/system.md interdit le glassmorphism (le voile
+              95 % + blur rendait le header irrégulier au scroll). */}
+          <header className="sticky top-0 z-30 bg-background border-b">
             <div className="flex items-center gap-3 px-4 md:px-8 h-14">
               <div className="md:hidden">
                 <HesydMark className="h-7 w-7" />
@@ -289,7 +316,7 @@ export function AppShell() {
                     {espaceActif === "platform" ? t("platform.badge") : t("space.operator.badge")}
                   </Badge>
                 )}
-                <h1 className="font-display text-[17px] font-semibold truncate">{titreActif}</h1>
+                <h1 className="font-display text-section font-semibold truncate">{titreActif}</h1>
               </div>
               <div className="ml-auto flex items-center gap-1.5">
                 {isTrial && trialEnds && (
@@ -302,6 +329,31 @@ export function AppShell() {
                 </Button>
                 <NotificationsMenu />
                 <ThemeToggle />
+                {/* Profil accessible sur mobile (audit UI) — même ProfileDialog que
+                    la barre latérale ; cible tactile 44 px. */}
+                <button
+                  type="button"
+                  onClick={() => setProfileOpen(true)}
+                  className="flex md:hidden h-11 w-11 min-h-11 items-center justify-center rounded-md transition-colors hover:bg-secondary/60"
+                  aria-label={t("profile.open")}
+                  title={t("profile.open")}
+                >
+                  {session?.user.avatarUrl ? (
+                    <img
+                      src={session.user.avatarUrl}
+                      alt=""
+                      className="h-8 w-8 rounded-full border border-bordure object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <span
+                      aria-hidden="true"
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-bordure bg-papier-leve font-display text-[10px] uppercase"
+                    >
+                      {(session?.user.name ?? "?").slice(0, 1)}
+                    </span>
+                  )}
+                </button>
                 {/* Déconnexion accessible sur mobile — la barre latérale est absente sur petit écran */}
                 <Button variant="ghost" size="icon" className="h-8 w-8 md:hidden" onClick={logout} aria-label={t("common.logout")} title={t("common.logout")}>
                   <LogOut className="h-4 w-4" aria-hidden="true" />
@@ -313,29 +365,27 @@ export function AppShell() {
           {/* Bannière e-mail non vérifié — discrète, action réelle */}
           <EmailVerifyBanner />
 
-          {/* Navigation mobile — commutateur d'espaces puis sections */}
+          {/* Navigation mobile — commutateur d'espaces, crédits, puis sections */}
           <div className="md:hidden border-b">
             <div className="px-3 pt-2 pb-1">
               <div
-                role="tablist"
+                role="group"
                 aria-label={t("space.switcher")}
                 className="grid grid-cols-2 gap-0 rounded-md border border-bordure bg-papier-creuse p-0.5"
               >
                 <button
-                  role="tab"
-                  aria-selected={espaceActif === "documents"}
+                  aria-pressed={espaceActif === "documents"}
                   onClick={() => setSpace("documents")}
-                  className={`flex items-center justify-center gap-1.5 rounded-[4px] px-2 py-2 text-[12px] font-medium ${espaceActif === "documents" ? "bg-card shadow-sm" : "text-muted-foreground"}`}
+                  className={`flex items-center justify-center gap-1.5 rounded-[4px] px-2 py-2 text-meta font-medium ${espaceActif === "documents" ? "bg-card shadow-sm" : "text-muted-foreground"}`}
                 >
                   <FileText className="h-3.5 w-3.5" aria-hidden="true" />
                   {t("space.documents")}
                 </button>
                 {canAdmin && (
                   <button
-                    role="tab"
-                    aria-selected={espaceActif === "operator"}
+                    aria-pressed={espaceActif === "operator"}
                     onClick={() => setSpace("operator")}
-                    className={`flex items-center justify-center gap-1.5 rounded-[4px] px-2 py-2 text-[12px] font-medium ${espaceActif === "operator" ? "bg-card shadow-sm" : "text-muted-foreground"}`}
+                    className={`flex items-center justify-center gap-1.5 rounded-[4px] px-2 py-2 text-meta font-medium ${espaceActif === "operator" ? "bg-card shadow-sm" : "text-muted-foreground"}`}
                   >
                     <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
                     {t("space.operator")}
@@ -343,11 +393,15 @@ export function AppShell() {
                 )}
               </div>
             </div>
-            <div className="px-3 py-2 flex gap-1 overflow-x-auto scroll-fin" role="tablist" aria-label={t("nav.sections")}>
+            {/* Crédits en mobile (audit UI) — jauge fine, mêmes attributs ARIA que la barre latérale */}
+            <div className="px-3 pb-2">
+              <BlocCredits fine />
+            </div>
+            {/* Sections : navigation à part entière (même convention aria-current que la barre latérale) */}
+            <nav aria-label={t("nav.sections")} className="px-3 py-2 flex gap-1 overflow-x-auto scroll-fin">
               {isPlatformAdmin && (
                 <button
-                  role="tab"
-                  aria-selected={espaceActif === "platform"}
+                  aria-current={espaceActif === "platform" ? "page" : undefined}
                   onClick={() => setView("platform")}
                   className={`shrink-0 inline-flex items-center gap-1.5 px-3 min-h-11 rounded-md text-[12.5px] ${
                     espaceActif === "platform" ? "bg-secondary font-medium" : "text-muted-foreground"
@@ -362,8 +416,7 @@ export function AppShell() {
                 return (
                   <button
                     key={item.key}
-                    role="tab"
-                    aria-selected={actif}
+                    aria-current={actif ? "page" : undefined}
                     onClick={() => (item.tab ? setAdminTab(item.tab!) : setView(item.id))}
                     className={`shrink-0 px-3 py-1.5 min-h-11 rounded-md text-[12.5px] ${actif ? "bg-secondary font-medium" : "text-muted-foreground"}`}
                   >
@@ -371,7 +424,7 @@ export function AppShell() {
                   </button>
                 );
               })}
-            </div>
+            </nav>
           </div>
 
           <main
@@ -397,7 +450,7 @@ export function AppShell() {
             {espaceActif === "platform" && view === "platform" && <PlatformView />}
           </main>
 
-          <footer className="mt-auto border-t px-4 md:px-8 py-3 text-[11.5px] text-muted-foreground flex flex-wrap gap-x-3 gap-y-1">
+          <footer className="mt-auto border-t px-4 md:px-8 py-3 text-meta text-muted-foreground flex flex-wrap gap-x-3 gap-y-1">
             <span className="font-display">HESYD ONE</span>
             <span aria-hidden="true">·</span>
             <span>{session?.organization.name}</span>

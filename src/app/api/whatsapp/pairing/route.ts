@@ -4,10 +4,16 @@ import { handle } from "@/lib/api";
 import { createPairing } from "@/lib/whatsapp-pairing";
 import { logAudit } from "@/lib/audit";
 
-/** Liste des appairages WhatsApp de l'organisation (états réels). */
+/** Liste des appairages WhatsApp de l'organisation (états réels).
+ *  MAJEURE-1a (audit) : le code EN_ATTENTE n'est retourné qu'aux rôles en
+ *  écriture (PROPRIETAIRE, ADMINISTRATEUR, EMPLOYE — même garde que POST).
+ *  Un LECTEUR ne doit jamais lire un code d'appairage : il pourrait l'envoyer
+ *  depuis son propre numéro et activer l'appairage à la place du créateur.
+ *  Les autres champs de la ligne restent visibles (code: null). */
 export async function GET() {
   return handle(async () => {
     const auth = await requireAuth();
+    const codeVisible = ["PROPRIETAIRE", "ADMINISTRATEUR", "EMPLOYE"].includes(auth.role);
     const pairings = await db.whatsappPairing.findMany({
       where: { organizationId: auth.organization.id },
       orderBy: { createdAt: "desc" },
@@ -22,7 +28,7 @@ export async function GET() {
       const effectiveStatus = p.status === "EN_ATTENTE" && p.expiresAt < now ? "EXPIRE" : p.status;
       return {
         id: p.id,
-        code: p.status === "EN_ATTENTE" && p.expiresAt > now ? p.code : null,
+        code: codeVisible && p.status === "EN_ATTENTE" && p.expiresAt > now ? p.code : null,
         status: effectiveStatus,
         phone: p.status === "ACTIF" ? p.phone : null,
         expiresAt: p.expiresAt,

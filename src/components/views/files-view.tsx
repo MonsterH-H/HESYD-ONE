@@ -1,13 +1,20 @@
 "use client";
 
+/**
+ * Choix typographiques assumés (échelle registre 13·16·20·25) : en-têtes de
+ * registre et micro-labels de fiche en text-[11px], densité de ligne en
+ * text-[11.5px]/[12px]/[12.5px], titres de Sheet en text-[18px] — densité
+ * de tableau conservée volontairement.
+ */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Copy, FileUp } from "lucide-react";
+import { Copy, FileText, FileUp } from "lucide-react";
 import { useAppStore } from "@/store/app";
 import { useI18n } from "@/lib/i18n";
 import { apiGet } from "@/hooks/use-api";
 import { toast } from "@/hooks/use-toast";
 import { Cachet, StatusPill, ChainCustody } from "@/components/app/cachet";
 import { EtatErreur } from "@/components/app/etat-erreur";
+import { EtatVide } from "@/components/app/etat-vide";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -147,6 +154,8 @@ export function FilesView() {
 
   // — Détail —
   const [detail, setDetail] = useState<FileDetail | null>(null);
+  // Échec dérivé de l'id : pas de reset synchrone dans l'effet (react-hooks/set-state-in-effect)
+  const [detailErreurId, setDetailErreurId] = useState<string | null>(null);
 
   // — Dépôt —
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -201,27 +210,48 @@ export function FilesView() {
     });
   }, []);
 
-  // Fiche documentaire réelle pilotée par le store
+  // Fiche documentaire réelle pilotée par le store — l'échec n'est plus masqué :
+  // le panneau reste ouvert sur EtatErreur avec reprise (audit UI P2).
   useEffect(() => {
     if (!detailFileId) return;
     let vivant = true;
     apiGet<FileDetail>(`/api/files/${detailFileId}`).then((d) => {
       if (!vivant) return;
-      if (d) setDetail(d);
-      else setDetailFileId(null);
+      if (d) {
+        setDetail(d);
+        setDetailErreurId(null);
+      } else {
+        setDetailErreurId(detailFileId);
+      }
     });
     return () => {
       vivant = false;
     };
-  }, [detailFileId, setDetailFileId]);
+  }, [detailFileId]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  // Chargement dérivé : la fiche demandée n'est pas encore celle chargée
-  const detailChargement = !!detailFileId && (!detail || detail.file.id !== detailFileId);
+  // États dérivés : la fiche demandée n'est pas encore celle chargée, ou son chargement a échoué
+  const detailErreur = !!detailFileId && detailErreurId === detailFileId;
+  const detailChargement = !!detailFileId && !detailErreur && (!detail || detail.file.id !== detailFileId);
 
   const fermerDetail = () => {
     setDetail(null);
+    setDetailErreurId(null);
     setDetailFileId(null);
+  };
+
+  // Reprise de la fiche après échec de chargement (même chargeur que l'effet)
+  const rechargerDetail = () => {
+    const id = detailFileId;
+    if (!id) return;
+    void apiGet<FileDetail>(`/api/files/${id}`).then((d) => {
+      if (d) {
+        setDetail(d);
+        setDetailErreurId(null);
+      } else {
+        setDetailErreurId(id);
+      }
+    });
   };
 
   const copierPreuve = async (texte: string) => {
@@ -297,8 +327,8 @@ export function FilesView() {
       {/* En-tête */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="font-display text-[20px] font-semibold">{t("files.title")}</h2>
-          <p className="mt-1 text-[13px] text-muted-foreground">{t("files.subtitle")}</p>
+          <h2 className="text-section font-display font-semibold">{t("files.title")}</h2>
+          <p className="text-meta mt-1 text-muted-foreground">{t("files.subtitle")}</p>
         </div>
         {peutDeposer && <Button onClick={() => setUploadOpen(true)}>{t("files.upload")}</Button>}
       </div>
@@ -371,16 +401,16 @@ export function FilesView() {
         </Select>
       </div>
 
-      {/* Registre documentaire */}
+      {/* Registre documentaire — sémantique ARIA alignée sur imports-view (row/columnheader/cell, bouton interne pour l'ouverture de fiche) */}
       <div className="registre mt-4 border-t border-[var(--bordure)]" role="table" aria-label={t("files.title")}>
-        <div className="hidden h-9 items-center gap-4 px-2 text-[11px] uppercase tracking-[0.06em] text-muted-foreground md:flex">
-          <span className="min-w-0 flex-1">{t("files.detail.original")}</span>
-          <span className="hidden w-44 shrink-0 lg:block">{t("files.filter.client")}</span>
-          <span className="hidden w-32 shrink-0 sm:block">{t("files.filter.category")}</span>
-          <span className="hidden w-20 shrink-0 text-right sm:block">{t("deliverables.size")}</span>
-          <span className="w-36 shrink-0">{t("clients.status")}</span>
-          <span className="hidden w-24 shrink-0 xl:block">{t("files.detail.received")}</span>
-          <span className="w-24 shrink-0 text-right">{t("common.date")}</span>
+        <div role="row" className="text-[11px] hidden h-9 items-center gap-4 px-2 uppercase tracking-[0.06em] text-muted-foreground md:flex">
+          <span role="columnheader" className="min-w-0 flex-1">{t("files.detail.original")}</span>
+          <span role="columnheader" className="hidden w-44 shrink-0 lg:block">{t("files.filter.client")}</span>
+          <span role="columnheader" className="hidden w-32 shrink-0 sm:block">{t("files.filter.category")}</span>
+          <span role="columnheader" className="hidden w-20 shrink-0 text-right sm:block">{t("deliverables.size")}</span>
+          <span role="columnheader" className="w-36 shrink-0">{t("clients.status")}</span>
+          <span role="columnheader" className="hidden w-24 shrink-0 xl:block">{t("files.detail.received")}</span>
+          <span role="columnheader" className="w-24 shrink-0 text-right">{t("common.date")}</span>
         </div>
 
         {files === null && erreur && (
@@ -401,48 +431,57 @@ export function FilesView() {
         )}
 
         {files !== null && files.length === 0 && (
-          <p className="px-2 py-10 text-center text-[13.5px] text-muted-foreground">{t("files.empty")}</p>
+          <EtatVide
+            icon={FileText}
+            title={t("files.empty")}
+            actionLabel={peutDeposer ? t("files.upload") : undefined}
+            onAction={() => setUploadOpen(true)}
+          />
         )}
 
         {files?.map((f) => (
           <div
             key={f.id}
-            role="button"
-            tabIndex={0}
+            role="row"
             onClick={() => setDetailFileId(f.id)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                setDetailFileId(f.id);
-              }
-            }}
-            className="registre-row flex min-h-12 cursor-pointer flex-wrap items-center gap-x-4 gap-y-1 px-2 py-2 md:flex-nowrap"
+            className="registre-row flex min-h-12 flex-wrap cursor-pointer items-center gap-x-4 gap-y-1 px-2 py-2 md:flex-nowrap"
             aria-label={f.originalFilename}
           >
-            <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium" title={f.originalFilename}>
-              {f.originalFilename}
+            <span role="cell" className="min-w-0 flex-1">
+              {/* Vrai bouton interne : la sémantique d'action reste accessible au clavier sans role="button" sur la ligne */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDetailFileId(f.id);
+                }}
+                className="text-meta block max-w-full truncate text-left font-medium underline-offset-2 hover:underline"
+                title={f.originalFilename}
+              >
+                {f.originalFilename}
+              </button>
             </span>
-            <span className="meta-points hidden max-w-[176px] shrink-0 items-center text-[12px] text-muted-foreground lg:flex">
+            <span role="cell" className="meta-points hidden max-w-[176px] shrink-0 items-center text-[12px] text-muted-foreground lg:flex">
               {f.client && <span className="truncate">{f.client.name}</span>}
               {f.group && <span className="truncate">{f.group.name}</span>}
             </span>
-            <span className="hidden w-32 shrink-0 truncate text-[12.5px] sm:block">
+            <span role="cell" className="hidden w-32 shrink-0 truncate text-[12.5px] sm:block">
               {libelleCategorie(f.category, t)}
             </span>
-            <span className="hidden w-20 shrink-0 text-right text-[12px] tnum text-muted-foreground sm:block">
+            <span role="cell" className="hidden w-20 shrink-0 text-right text-[12px] tnum text-muted-foreground sm:block">
               {tailleHumaine(f.sizeBytes)}
             </span>
-            <span className="w-36 shrink-0">
+            <span role="cell" className="w-36 shrink-0">
               <StatusPill status={f.status} label={t(`status.${f.status}`)} />
             </span>
-            <span className="hidden w-24 shrink-0 text-[11px] xl:block" title={t("files.detail.duplication")}>
+            <span role="cell" className="hidden w-24 shrink-0 text-[11px] xl:block" title={t("files.detail.duplication")}>
               {f.receptionCount > 1 && (
                 <span className="tnum" style={{ color: "var(--carton)" }}>
                   {t("files.detail.receivedTimes").replace("{n}", String(f.receptionCount))}
                 </span>
               )}
             </span>
-            <time className="w-24 shrink-0 text-right text-[12px] tnum text-muted-foreground" dateTime={f.createdAt}>
+            <time role="cell" className="w-24 shrink-0 text-right text-[12px] tnum text-muted-foreground" dateTime={f.createdAt}>
               {new Date(f.createdAt).toLocaleDateString()}
             </time>
           </div>
@@ -474,7 +513,12 @@ export function FilesView() {
       {/* ——— Fiche documentaire ——— */}
       <Sheet open={!!detailFileId} onOpenChange={(v) => !v && fermerDetail()}>
         <SheetContent side="right" className="w-[560px] sm:max-w-[560px]">
-          {detailChargement && (
+          {detailErreur && (
+            <div className="px-4 py-6">
+              <EtatErreur compact onRetry={rechargerDetail} />
+            </div>
+          )}
+          {!detailErreur && detailChargement && (
             <div className="space-y-3 px-4" aria-busy="true">
               <Skeleton className="h-8 w-3/4 rounded-md" />
               <Skeleton className="h-24 w-full rounded-md" />
@@ -482,12 +526,12 @@ export function FilesView() {
               <Skeleton className="h-16 w-full rounded-md" />
             </div>
           )}
-          {detail && (
+          {!detailErreur && detail && (
             <>
               <SheetHeader className="pr-10">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <SheetTitle className="font-display text-[18px] leading-snug" title={detail.file.originalFilename}>
+                    <SheetTitle className="text-[18px] font-display leading-snug" title={detail.file.originalFilename}>
                       {detail.file.originalFilename}
                     </SheetTitle>
                     <SheetDescription className="mt-1">
@@ -505,7 +549,7 @@ export function FilesView() {
 
               <div className="scroll-fin flex-1 overflow-y-auto px-4 pb-4">
                 {/* Identité */}
-                <dl className="space-y-2 text-[13px]">
+                <dl className="text-meta space-y-2">
                   <div className="flex justify-between gap-4">
                     <dt className="shrink-0 text-muted-foreground">{t("files.detail.type")}</dt>
                     <dd className="min-w-0 text-right">
@@ -526,7 +570,7 @@ export function FilesView() {
                 {detail.file.summary && (
                   <div className="mt-3">
                     <p className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">{t("files.detail.summary")}</p>
-                    <p className="mt-1 text-[13px] leading-relaxed">{detail.file.summary}</p>
+                    <p className="text-meta mt-1 leading-relaxed">{detail.file.summary}</p>
                   </div>
                 )}
 
@@ -585,7 +629,7 @@ export function FilesView() {
                       {detail.extractions.map((ex) => (
                         <li key={ex.id} className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 border-b border-[var(--bordure)] py-1.5">
                           <span className="w-28 shrink-0 truncate text-[12.5px] font-medium tnum">{ex.field}</span>
-                          <span className="min-w-0 flex-1 break-words text-[13px]">{ex.value}</span>
+                          <span className="text-meta min-w-0 flex-1 break-words">{ex.value}</span>
                           <span className="shrink-0 text-[11.5px] tnum text-muted-foreground">
                             {Math.round(ex.confidence * 100)}%
                           </span>
@@ -660,7 +704,7 @@ export function FilesView() {
       <Sheet open={uploadOpen} onOpenChange={fermerUpload}>
         <SheetContent side="right" className="w-[440px] sm:max-w-[440px]">
           <SheetHeader className="pr-10">
-            <SheetTitle className="font-display text-[18px]">{t("files.upload")}</SheetTitle>
+            <SheetTitle className="text-[18px] font-display">{t("files.upload")}</SheetTitle>
             <SheetDescription>{t("files.subtitle")}</SheetDescription>
           </SheetHeader>
 
@@ -718,7 +762,7 @@ export function FilesView() {
             {resultat && (
               <div className="mt-4 flex flex-col items-center gap-2 rounded-md border border-[var(--bordure)] px-4 py-5" style={{ background: "var(--ruban-fond)" }}>
                 <Cachet size={110} animated={true} />
-                <p className="text-[13px] font-medium">{t("files.upload.done")}</p>
+                <p className="text-meta font-medium">{t("files.upload.done")}</p>
                 {resultat.proof && (
                   <p className="max-w-full break-words text-center text-[11px] leading-relaxed tnum text-muted-foreground">
                     {resultat.proof}

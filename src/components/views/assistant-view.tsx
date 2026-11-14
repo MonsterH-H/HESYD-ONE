@@ -11,10 +11,11 @@ import { apiGet } from "@/hooks/use-api";
 import { toast } from "@/hooks/use-toast";
 import { useAppStore, refreshCredits } from "@/store/app";
 import { EtatErreur } from "@/components/app/etat-erreur";
+import { EtatVide } from "@/components/app/etat-vide";
 import { Pill } from "@/components/app/pill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Mic, Plus, Square, FileText, Clock } from "lucide-react";
+import { Loader2, Mic, Plus, Square, FileText, Clock, MessageCircle, Sparkles } from "lucide-react";
 
 type SourceRef = { fileId: string; label: string; page?: number; ref?: string };
 
@@ -76,6 +77,7 @@ const EMPTY_MISSION: Mission = { active: false, taskId: null, objectif: "", crit
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
+    // Micro-label de densité volontaire : 10.5px < meta (13px), hors échelle registre assumé
     <h3 className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
       {children}
     </h3>
@@ -433,11 +435,11 @@ export function AssistantView() {
             {t("assistant.newConversation")}
           </Button>
         </div>
-        <div className="registre max-h-28 overflow-y-auto scroll-fin border rounded-md bg-card" role="list" aria-label={t("assistant.conversations")}>
+        <div className="registre max-h-48 overflow-y-auto scroll-fin border rounded-md bg-card" role="list" aria-label={t("assistant.conversations")}>
           {conversations.length === 0 && convErreur ? (
             <EtatErreur compact onRetry={() => void refreshConversations()} />
           ) : conversations.length === 0 ? (
-            <p className="text-[12px] text-muted-foreground px-3 py-2.5">{t("assistant.noConversation")}</p>
+            <EtatVide icon={MessageCircle} title={t("assistant.noConversation")} compact />
           ) : (
             conversations.map((c) => (
               <button
@@ -447,8 +449,8 @@ export function AssistantView() {
                 aria-current={activeConvId === c.id ? "true" : undefined}
                 className={`registre-row w-full min-h-[44px] text-left px-3 py-2 flex items-baseline gap-3 ${activeConvId === c.id ? "bg-secondary" : ""}`}
               >
-                <span className="text-[13px] font-medium truncate">{c.title}</span>
-                <span className="text-[11.5px] text-muted-foreground truncate flex-1 min-w-0">{c.lastMessage}</span>
+                <span className="text-meta font-medium truncate">{c.title}</span>
+                <span className="text-meta text-muted-foreground truncate flex-1 min-w-0">{c.lastMessage}</span>
                 <span className="text-[11px] tnum text-muted-foreground shrink-0">{new Date(c.createdAt).toLocaleDateString()}</span>
               </button>
             ))
@@ -458,14 +460,14 @@ export function AssistantView() {
         {/* Fil de discussion */}
         <div ref={threadRef} className="flex-1 min-h-[340px] lg:min-h-0 lg:h-[calc(100vh-24rem)] overflow-y-auto scroll-fin border rounded-lg bg-card px-4 py-4 space-y-4">
           {threadEmpty ? (
-            <div className="h-full flex flex-col justify-center gap-3 py-10">
-              <p className="text-[14px] text-muted-foreground">{t("assistant.empty")}</p>
+            <div className="h-full flex flex-col justify-center gap-4 py-10">
+              <EtatVide icon={Sparkles} title={t("assistant.empty")} compact />
               <ul className="space-y-2">
                 {examples.map((ex) => (
                   <li key={ex}>
                     <button
                       onClick={() => setInput(ex)}
-                      className="text-[13.5px] text-muted-foreground text-left underline-offset-4 hover:underline hover:text-foreground"
+                      className="text-meta text-muted-foreground text-left underline-offset-4 hover:underline hover:text-foreground"
                     >
                       {ex}
                     </button>
@@ -478,19 +480,19 @@ export function AssistantView() {
               {messages.map((m) =>
                 m.role === "user" ? (
                   <div key={m.id} className="flex justify-end">
-                    <div className="max-w-[85%] bg-secondary rounded-md px-3 py-2 text-[13.5px] leading-relaxed whitespace-pre-wrap">{m.content}</div>
+                    <div className="max-w-[85%] bg-secondary rounded-md px-3 py-2 text-meta leading-relaxed whitespace-pre-wrap">{m.content}</div>
                   </div>
                 ) : (
                   <div key={m.id} className="max-w-[94%]">
                     {m.statut && <div className="mb-1.5">{statutPill(m.statut, t(`assistant.status.${m.statut}`))}</div>}
-                    <p className="text-[13.5px] leading-relaxed whitespace-pre-wrap">{m.content}</p>
+                    <p className="text-meta leading-relaxed whitespace-pre-wrap">{m.content}</p>
                     {m.sources.length > 0 && <SourcesList sources={m.sources} onOpen={openSource} pageLabel={t("assistant.page")} />}
                   </div>
                 )
               )}
               {clarification && (
                 <div className="max-w-[94%] border-l-2 pl-3" style={{ borderColor: "var(--carton)" }}>
-                  <p className="text-[13.5px] leading-relaxed whitespace-pre-wrap">{clarification.question}</p>
+                  <p className="text-meta leading-relaxed whitespace-pre-wrap">{clarification.question}</p>
                   {clarification.options.length > 0 && (
                     <div className="flex flex-wrap gap-2 mt-2.5">
                       {clarification.options.map((o) => (
@@ -503,7 +505,7 @@ export function AssistantView() {
                 </div>
               )}
               {erreur && (
-                <div className="max-w-[94%] rounded-md px-3 py-2.5 text-[13px] leading-relaxed whitespace-pre-wrap" style={{ background: "var(--erreur-fond)", color: "var(--erreur)" }} role="alert">
+                <div className="max-w-[94%] rounded-md px-3 py-2.5 text-meta leading-relaxed whitespace-pre-wrap" style={{ background: "var(--erreur-fond)", color: "var(--erreur)" }} role="alert">
                   {erreur}
                 </div>
               )}
@@ -581,9 +583,9 @@ export function AssistantView() {
                 <SectionTitle>{t("assistant.mission")}</SectionTitle>
                 {mission.active && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" aria-hidden="true" />}
               </div>
-              <p className="text-[13px] font-medium leading-snug mt-2 whitespace-pre-wrap">{mission.objectif}</p>
+              <p className="text-meta font-medium leading-snug mt-2 whitespace-pre-wrap">{mission.objectif}</p>
               {mission.criteres && (
-                <p className="text-[11.5px] text-muted-foreground mt-1.5 leading-snug">
+                <p className="text-meta text-muted-foreground mt-1.5 leading-snug">
                   {t("assistant.criteres")} · {mission.criteres}
                 </p>
               )}
@@ -622,7 +624,7 @@ export function AssistantView() {
                         {tool.ok === false && <CrossMark color="var(--erreur)" />}
                         {typeof tool.ms === "number" && <span className="ml-auto text-[11px] tnum text-muted-foreground shrink-0">{tool.ms} ms</span>}
                       </div>
-                      <p className="text-[11.5px] text-muted-foreground mt-0.5 leading-snug break-words">{tool.resultSummary}</p>
+                      <p className="text-meta text-muted-foreground mt-0.5 leading-snug break-words">{tool.resultSummary}</p>
                       {tool.proof && <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug break-words">{t("assistant.proof")} · {tool.proof}</p>}
                     </li>
                   ))}
