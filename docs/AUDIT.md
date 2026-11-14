@@ -562,3 +562,12 @@ E1–E8 (identifiants externes), build VPS (E7 — interdit dans cette sandbox),
 ### 15.6 État global inchangé
 
 Les statuts d'intégration du §14 restent inchangés : aucune donnée externe nouvelle n'a été fournie ; rien ne passe de « non configuré » à « connecté » sans preuve réelle. La refonte est strictement UI/UX + durcissement + correctifs — l'architecture et les décisions techniques verrouillées n'ont pas été modifiées.
+
+### 15.7 Durcissement des dépendances (même session)
+
+- **6 paquets entièrement inutilisés supprimés** (usage vérifié par recherche d'imports) : `@reactuses/core`, `react-syntax-highlighter`, `@mdxeditor/editor`, `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities` — élimine les chaînes vulnérables js-cookie (high) et prismjs ;
+- **sharp 0.34.3 → 0.35.5** : corrige les 3 advisories high (libvips CVE-2026-33327/33328/35590/35591, libheif, librsvg) ;
+- **next 16.1.x → 16.4.6** + **react/react-dom alignés exactement 19.3.1** (le désalignement causait des 500 au démarrage — résolu par cache `.next` vidé et redémarrage) : élimine les 4 CVE critiques RCE Next.js ;
+- `bun update` global (dans les ranges) ;
+- **Audit : 101 vulnérabilités (4 critiques, 56 high) → 35 (0 critique, 23 high).** Les 23 restantes sont transitives et bornées par les upstream — chaînes dev-only (eslint → flatted/browserslist/brace-expansion, prisma CLI → defu/deepmerge-ts) ou portée runtime non exploitable dans ce produit (exceljs → archiver → glob sur chemins de zip ; recharts → lodash interne). **Aucun correctif disponible sans montée majeure cassante** ; à reprendre lors des prochaines montées de version d'upstream.
+- Corrections lint rendues nécessaires par eslint-plugin-react-hooks 7.1.1 (règle `set-state-in-effect` durcie) : frontières microtask/rAF vérifiées par sondes empiriques (onboarding-wizard, carousel vendu, loaders admin/files/platform), `useSyncExternalStore` pour `use-mobile`, reset de page déplacé dans le handler de recherche (platform-view), justification en ligne pour la redirection OAuth pleine page (auth-view). `bun run lint` : 0 erreur, 0 warning ; `npx tsc --noEmit` : 0 erreur.
