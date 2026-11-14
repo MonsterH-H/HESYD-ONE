@@ -151,24 +151,30 @@ export async function POST(req: Request) {
         }
       }
 
-      // Facture d'abonnement réelle (traçabilité CDC §9)
+      // Facture d'abonnement réelle (traçabilité CDC §9) — créée UNIQUEMENT si
+      // le montant réel figure dans le payload Polar : une facture à 0 €
+      // marquée « PAYEE » serait une fausse preuve de paiement (audit P3-14).
       if (event.type === "subscription.cycled" && result.creditsGranted > 0) {
         const data = event.data as { amount?: number; currency?: string };
-        const count = await db.invoice.count({ where: { organizationId: result.organizationId } });
-        const year = new Date().getFullYear();
-        await db.invoice.create({
-          data: {
-            organizationId: result.organizationId,
-            number: `FAC-${year}-${String(count + 1).padStart(4, "0")}`,
-            kind: "ABONNEMENT",
-            label: `Abonnement — cycle ${new Date().toISOString().slice(0, 10)}`,
-            periodStart: new Date(),
-            periodEnd: new Date(Date.now() + 30 * 24 * 3600 * 1000),
-            amountCents: typeof data.amount === "number" ? data.amount : 0,
-            currency: (data.currency ?? "eur").toUpperCase(),
-            status: "PAYEE",
-          },
-        });
+        if (typeof data.amount === "number") {
+          const count = await db.invoice.count({ where: { organizationId: result.organizationId } });
+          const year = new Date().getFullYear();
+          await db.invoice.create({
+            data: {
+              organizationId: result.organizationId,
+              number: `FAC-${year}-${String(count + 1).padStart(4, "0")}`,
+              kind: "ABONNEMENT",
+              label: `Abonnement — cycle ${new Date().toISOString().slice(0, 10)}`,
+              periodStart: new Date(),
+              periodEnd: new Date(Date.now() + 30 * 24 * 3600 * 1000),
+              amountCents: data.amount,
+              currency: (data.currency ?? "eur").toUpperCase(),
+              status: "PAYEE",
+            },
+          });
+        } else {
+          console.warn("[polar-webhook] montant absent du payload subscription.cycled — aucune facture fabriquée (le montant réel viendra de l'ordre Polar)");
+        }
       }
     }
     return NextResponse.json({ received: true });

@@ -24,8 +24,8 @@ export async function POST(req: Request) {
   ensureScheduler();
   const raw = await req.text();
   const valid = verifyN8nSignature(raw, {
-    "x-hesy-timestamp": req.headers.get("x-hesy-timestamp"),
-    "x-hesy-signature": req.headers.get("x-hesy-signature"),
+    "x-hesyd-timestamp": req.headers.get("x-hesyd-timestamp"),
+    "x-hesyd-signature": req.headers.get("x-hesyd-signature"),
   });
   if (!valid) {
     return NextResponse.json({ error: "signature_invalide_ou_n8n_non_configure" }, { status: 403 });

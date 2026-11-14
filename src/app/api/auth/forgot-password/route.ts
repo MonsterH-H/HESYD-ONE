@@ -6,6 +6,7 @@ import { sha256Hex } from "@/lib/auth";
 import { clientIp, consumeRateLimitWindow } from "@/lib/rate-limit";
 import { appOriginFromRequest } from "@/lib/oauth-google";
 import { resendConfigured, sendEmail, systemEmailHtml } from "@/lib/connectors/resend";
+import { logAudit } from "@/lib/audit";
 
 const schema = z.object({ email: z.string().email() });
 
@@ -45,6 +46,9 @@ export async function POST(req: Request) {
     if (!user || !user.passwordHash) return generic;
 
     const token = await issueAuthToken(user.id, "REINITIALISATION_MDP");
+    // Journal d'audit (audit §2 — émission de jeton de réinitialisation tracée,
+    // le jeton lui-même n'est jamais journalisé)
+    await logAudit({ userId: user.id, action: "DEMANDE_REINITIALISATION_MDP", entityType: "User", entityId: user.id, after: { ip: clientIp(req) } });
 
     if (resendConfigured()) {
       // Envoi réel via Resend : le lien n'est jamais révélé dans la réponse.

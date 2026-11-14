@@ -16,6 +16,13 @@
 
 type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 
+// Note d'architecture (contrôle final) : l'option multimodale « vision » qui
+// existait ici a été SUPPRIMÉE. Aucun appelant ne l'utilisait et elle
+// constituait un vecteur latent de moteur vision concurrent de Google
+// Document AI, qui reste l'unique moteur OCR/extraction (directive du
+// commanditaire). Le fournisseur IA (Azure AI Foundry / repli GLM) traite
+// exclusivement du texte.
+
 export type ChatResult = {
   content: string;
   provider: "AZURE_AI_FOUNDRY" | "GLM";
@@ -35,10 +42,10 @@ export function azureFoundryDeployment(): string | null {
   return azureFoundryConfigured() ? (process.env.AZURE_AI_FOUNDRY_DEPLOYMENT as string) : null;
 }
 
-/** Requête chat réelle : Azure AI Foundry si configuré, sinon GLM (repli explicite). */
+/** Requête chat réelle : Azure AI Foundry si configuré, sinon GLM (repli explicite). Traitement TEXTE uniquement. */
 export async function chatComplete(
   messages: ChatMessage[],
-  opts?: { temperature?: number; maxTokens?: number; jsonMode?: boolean; vision?: { base64: string; mimeType: string } },
+  opts?: { temperature?: number; maxTokens?: number; jsonMode?: boolean },
 ): Promise<ChatResult> {
   if (azureFoundryConfigured()) {
     return chatViaAzure(messages, opts);
@@ -48,27 +55,15 @@ export async function chatComplete(
 
 async function chatViaAzure(
   messages: ChatMessage[],
-  opts?: { temperature?: number; maxTokens?: number; jsonMode?: boolean; vision?: { base64: string; mimeType: string } },
+  opts?: { temperature?: number; maxTokens?: number; jsonMode?: boolean },
 ): Promise<ChatResult> {
   const endpoint = (process.env.AZURE_AI_FOUNDRY_ENDPOINT as string).replace(/\/+$/, "");
   const deployment = process.env.AZURE_AI_FOUNDRY_DEPLOYMENT as string;
   const apiVersion = process.env.AZURE_AI_FOUNDRY_API_VERSION || "2024-10-21";
   const url = `${endpoint}/openai/deployments/${encodeURIComponent(deployment)}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`;
 
-  // Format de messages conforme à l'API OpenAI/Azure ; contenu multimodal si vision.
-  const bodyMessages = messages.map((m) => {
-    if (m.role === "user" && opts?.vision) {
-      return {
-        role: m.role,
-        content: [
-          { type: "text", text: m.content },
-          { type: "image_url", image_url: { url: `data:${opts.vision.mimeType};base64,${opts.vision.base64}` } },
-        ],
-      };
-    }
-    return m;
-  });
-
+  // Format de messages conforme à l'API OpenAI/Azure — texte uniquement.
+  const bodyMessages = messages;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", "api-key": process.env.AZURE_AI_FOUNDRY_API_KEY as string },
@@ -101,24 +96,12 @@ async function chatViaAzure(
 
 async function chatViaGlm(
   messages: ChatMessage[],
-  opts?: { temperature?: number; maxTokens?: number; jsonMode?: boolean; vision?: { base64: string; mimeType: string } },
+  opts?: { temperature?: number; maxTokens?: number; jsonMode?: boolean },
 ): Promise<ChatResult> {
   const { default: ZAI } = await import("z-ai-web-dev-sdk");
   const zai = await ZAI.create();
-  const sdkMessages: { role: string; content: unknown }[] = messages.map((m) => {
-    if (m.role === "user" && opts?.vision) {
-      return {
-        role: "user",
-        content: [
-          { type: "text", text: m.content },
-          { type: "image_url", image_url: { url: `data:${opts.vision.mimeType};base64,${opts.vision.base64}` } },
-        ],
-      };
-    }
-    return m;
-  });
   const completion = await zai.chat.completions.create({
-    messages: sdkMessages as never,
+    messages: messages as never,
     thinking: { type: "disabled" },
   });
   const content = completion.choices[0]?.message?.content ?? "";

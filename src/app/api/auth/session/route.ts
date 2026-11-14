@@ -8,7 +8,11 @@ export async function GET() {
   return handle(async () => {
     const auth = await getAuth();
     if (!auth) return { authenticated: false };
-    const credits = await creditBalance(auth.organization.id);
+    const [credits, subscription] = await Promise.all([
+      creditBalance(auth.organization.id),
+      db.subscription.findUnique({ where: { organizationId: auth.organization.id } }),
+    ]);
+    const plan = await db.plan.findUnique({ where: { code: subscription?.planCode ?? "TRIAL" } });
     const user = await db.user.findUnique({ where: { id: auth.user.id } });
     return {
       authenticated: true,
@@ -20,6 +24,9 @@ export async function GET() {
       organization: auth.organization,
       role: auth.role,
       credits,
+      // Quota réel de l'offre — la jauge d'interface ne codera plus le quota
+      // d'essai en dur (audit UI P1) ; null si aucun plan actif.
+      planMonthlyCredits: plan?.monthlyCredits ?? null,
       isPlatformAdmin: isPlatformAdminEmail(auth.user.email),
     };
   });

@@ -17,6 +17,7 @@ import { Cachet } from "@/components/app/cachet";
 import { HesydMark } from "@/components/app/hesyd-mark";
 import { AuthView, InviteAcceptView } from "@/components/auth-view";
 import { Button } from "@/components/ui/button";
+import { LegalDialog, type LegalDoc } from "@/components/legal/legal-dialog";
 import {
   Accordion,
   AccordionContent,
@@ -209,6 +210,9 @@ export default function Landing() {
   // Prix RÉELS des plans actifs, chargés depuis l'API publique — en cas d'échec,
   // affichage « Tarifs sur demande » : aucune valeur inventée, aucun prix en dur.
   const [plansApi, setPlansApi] = useState<ApiPlan[] | null>(null);
+  // Documents légaux réels (À propos / CGU / Confidentialité) rendus in-app —
+  // les trois liens « href="#" » inertes du footer sont supprimés (audit UI P2).
+  const [legalDoc, setLegalDoc] = useState<LegalDoc | null>(null);
 
   useEffect(() => {
     let vivant = true;
@@ -616,13 +620,13 @@ export default function Landing() {
               </h3>
               <ul className="mt-2">
                 <li>
-                  <a
-                    href="#"
-                    aria-label={t("landing.footer.about")}
-                    className="flex items-center min-h-11 text-[13.5px] text-[var(--encre-2)] hover:text-[var(--encre)] transition-colors duration-150"
+                  <button
+                    type="button"
+                    onClick={() => setLegalDoc("about")}
+                    className="flex items-center min-h-11 text-left text-[13.5px] text-[var(--encre-2)] hover:text-[var(--encre)] transition-colors duration-150"
                   >
                     {t("landing.footer.about")}
-                  </a>
+                  </button>
                 </li>
                 <li>
                   <a
@@ -640,22 +644,22 @@ export default function Landing() {
               </h3>
               <ul className="mt-2">
                 <li>
-                  <a
-                    href="#"
-                    aria-label={t("landing.footer.terms")}
-                    className="flex items-center min-h-11 text-[13.5px] text-[var(--encre-2)] hover:text-[var(--encre)] transition-colors duration-150"
+                  <button
+                    type="button"
+                    onClick={() => setLegalDoc("terms")}
+                    className="flex items-center min-h-11 text-left text-[13.5px] text-[var(--encre-2)] hover:text-[var(--encre)] transition-colors duration-150"
                   >
                     {t("landing.footer.terms")}
-                  </a>
+                  </button>
                 </li>
                 <li>
-                  <a
-                    href="#"
-                    aria-label={t("landing.footer.privacy")}
-                    className="flex items-center min-h-11 text-[13.5px] text-[var(--encre-2)] hover:text-[var(--encre)] transition-colors duration-150"
+                  <button
+                    type="button"
+                    onClick={() => setLegalDoc("privacy")}
+                    className="flex items-center min-h-11 text-left text-[13.5px] text-[var(--encre-2)] hover:text-[var(--encre)] transition-colors duration-150"
                   >
                     {t("landing.footer.privacy")}
-                  </a>
+                  </button>
                 </li>
               </ul>
             </div>
@@ -674,6 +678,8 @@ export default function Landing() {
           </div>
         </div>
       </footer>
+      {/* Documents légaux réels — À propos, CGU, Confidentialité */}
+      <LegalDialog doc={legalDoc} open={legalDoc !== null} onOpenChange={(v) => setLegalDoc(v ? legalDoc : null)} />
     </div>
   );
 }

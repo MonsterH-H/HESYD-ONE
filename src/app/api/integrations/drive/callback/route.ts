@@ -25,8 +25,21 @@ export async function GET(req: Request) {
     return NextResponse.redirect(`${process.env.PUBLIC_BASE_URL ?? ""}/?drive=erreur&cause=identifiants_ou_code_absent`);
   }
 
-  const pending = await db.integrationConnection.findFirst({ where: { connector: "GOOGLE_DRIVE", status: "EN_ATTENTE_AUTH" } });
-  if (!pending) return NextResponse.redirect(`${process.env.PUBLIC_BASE_URL ?? ""}/?drive=erreur&cause=aucune_auth_en_cours`);
+  const pendingRows = await db.integrationConnection.findMany({ where: { connector: "GOOGLE_DRIVE", status: "EN_ATTENTE_AUTH" } });
+  if (pendingRows.length === 0) return NextResponse.redirect(`${process.env.PUBLIC_BASE_URL ?? ""}/?drive=erreur&cause=aucune_auth_en_cours`);
+
+  // Résolution du flux par l'état comparé en temps constant sur TOUTES les lignes
+  // en attente (audit P2 — deux organisations peuvent avoir des flux simultanés ;
+  // un findFirst arbitraire rejetait le callback légitime de l'autre organisation).
+  let pending: (typeof pendingRows)[number] | null = null;
+  for (const row of pendingRows) {
+    const candidate = safeJsonParse<{ state?: string; organizationId?: string }>(row.configJson, {});
+    if (statesEqual(candidate.state, state)) {
+      pending = row;
+      break;
+    }
+  }
+  if (!pending) return NextResponse.redirect(`${process.env.PUBLIC_BASE_URL ?? ""}/?drive=erreur&cause=etat_invalide`);
 
   // Parse tolérant : un configJson corrompu ne doit pas provoquer de 500.
   const cfg = safeJsonParse<{ state?: string; organizationId?: string }>(pending.configJson, {});

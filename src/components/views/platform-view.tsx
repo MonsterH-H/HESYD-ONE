@@ -110,7 +110,9 @@ type PlatformData = {
     whatsappConfigure: boolean;
     driveConfigure: boolean;
     n8nConfigure: boolean;
-    smtpConfigure: boolean;
+    resendConfigure: boolean;
+    docAiConfigure: boolean;
+    azureConfigure: boolean;
     noteHonnête: string;
   };
 };
@@ -313,7 +315,9 @@ export function PlatformView() {
         { key: "platform.env.whatsapp", ok: data.environnement.whatsappConfigure },
         { key: "platform.env.drive", ok: data.environnement.driveConfigure },
         { key: "platform.env.n8n", ok: data.environnement.n8nConfigure },
-        { key: "platform.env.smtp", ok: data.environnement.smtpConfigure },
+        { key: "platform.env.smtp", ok: data.environnement.resendConfigure },
+        { key: "platform.env.docai", ok: data.environnement.docAiConfigure },
+        { key: "platform.env.azure", ok: data.environnement.azureConfigure },
       ]
     : [];
 

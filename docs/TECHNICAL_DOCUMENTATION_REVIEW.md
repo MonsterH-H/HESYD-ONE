@@ -128,3 +128,79 @@ Méthode d'exécution de cette session : recherche des pages officielles (moteur
 | E6 | PostgreSQL/pgvector (Neon, imposé) | Schéma portable + migrations versionnées baseline | Instance Neon au déploiement |
 | E7 | Build de production VPS | Dockerfile, compose, nginx, docs | Exécution VPS |
 | E8 | Azure AI Foundry | Couche fournisseur branchée partout | Endpoint + clé + déploiement |
+
+---
+
+## 8. Session de finalisation et de livraison — 14/11/2026 (après-midi)
+
+Audit indépendant à quatre agents (sécurité API, intégrations, UI/UX, données), corrections exécutées et vérifiées en direct. Chaque écart cite le fichier corrigé.
+
+### 8.1 Corrections de sécurité et d'architecture (P1/P2)
+
+| Écart | Correction | Preuve |
+|---|---|---|
+| `POST /api/health` : en-têtes HMAC mal orthographiés (`x-hesy-*` au lieu de `x-hesyd-*`) — le tick externe signé était mort-né | En-têtes alignés sur le contrat (`health/route.ts`) | Vérifié en direct : sans signature → **403** ; le contrat `verifyN8nSignature` lit désormais des en-têtes existants |
+| Codes d'appairage WhatsApp générés par `Math.random()` (prédictible) | `crypto.randomInt(100000, 1000000)` (`whatsapp-pairing.ts`) | Revue de code ; espace 10⁶ + anti-brute-force persistant conservé |
+| Ambiguïté inter-organisations du code d'appairage (unicité seulement `(org, code)`) | Unicité GLOBALE du code parmi les appairages vivants (toutes organisations) à la génération | `whatsapp-pairing.ts` — le webhook résout un code sans contexte d'organisation |
+| `POST /api/automations` (PATCH) sans garde de rôle — un LECTEUR pouvait (ré)activer des règles consommatrices de crédits | Garde `PROPRIETAIRE/ADMINISTRATEUR` ajoutée | `automations/route.ts` PATCH |
+| Révocation d'appairage WhatsApp sans garde de rôle | EMPLOYE ne révoque que ses propres appairages ; ADMIN+ tout | `whatsapp/pairing/[id]/route.ts` |
+| `GET /api/integrations/drive/authorize` écrasait le `configJson` d'une connexion CONNECTE (perte du refresh token chiffré, déclenchable par simple lien — CSRF SameSite=Lax) | Le `refreshTokenEnc` est conservé dans le configJson fusionné (authorize GET + POST `/api/integrations`) ; remplacé uniquement au callback réussi | `drive/authorize/route.ts`, `integrations/route.ts` |
+| Callback OAuth Drive : `findFirst` global sans filtre — deux organisations en autorisation simultanée se croisaient | Résolution par comparaison temps constant sur TOUTES les lignes `EN_ATTENTE_AUTH` — chaque state 128 bits désigne son flux | `drive/callback/route.ts` |
+| Option `vision` dormante dans le fournisseur IA (vecteur latent de moteur vision concurrent de Document AI) | **Supprimée** — le fournisseur IA (Azure/GLM) traite exclusivement du texte | `ai/provider.ts` |
+| Réinitialisation de mot de passe + MFA + connexions + génération de livrables non journalisés | `logAudit` ajouté : `REINITIALISATION_MDP`, `DEMANDE_REINITIALISATION_MDP`, `MFA_ACTIVEE/DESACTIVEE`, `CONNEXION` (+MFA), `LIVRABLE_GENERE` | Routes concernées |
+| Purge : fichiers `drive://` comptés « supprimés » sans suppression (fausse preuve) | Compteur distinct `driveFilesKept` — les archives du client restent dans SON Drive (propriété documentaire), message honnête | `trial-lifecycle.ts` |
+| Purge : garde de chemin faible (`startsWith(cwd)`) + données résiduelles non purgées | Garde `path.relative` stricte + purge étendue (AgentTask, Approval, WebhookEvent payloads, livrables physiques, opérations financières, imports, notifications, jetons OAuth) ; factures/audit/comptes conservés (décision produit) | `trial-lifecycle.ts` |
+| `correct`/`retry` reconstruisaient le chemin brut (`storage/received/<org>/<nom>`) au lieu de lire `rawPath` — échec `matiere_premiere_absente` après assainissement de nom ou média WhatsApp | Relecture du `rawPath` RÉEL de la réception (repli historique conservé) | `files/[id]/correct`, `files/[id]/retry` |
+| Déduplication inopérante sans groupe (SQLite : NULL distincts dans l'index unique) | Déduplication applicative `(org, groupId=null, sha256)` + rattachement préservé en reprise | `ingest.ts` |
+| `whatsappConfigured()` incomplet (sans `PHONE_NUMBER_ID`) → échecs d'envoi silencieux | Garde complète | `connectors/whatsapp.ts` |
+| Injection de formules CSV à l'export (`=`, `+`, `-`, `@`) | Neutralisation par préfixe apostrophe | `export/route.ts` |
+| `appOriginFromRequest` bâtissait des liens sensibles sur `x-forwarded-host` falsifiable | `APP_URL`/`PUBLIC_BASE_URL` prioritaires ; en production sans ces variables → refus (`app_url_requise_en_production`) ; validation stricte du host en dev | `oauth-google.ts` |
+| Import CSV/XLSX sans borne de taille/lignes (ExcelJS en mémoire) | 10 Mo max, 5 000 lignes max ; modèle téléchargeable désormais authentifié | `imports/route.ts` |
+| Transcription vocale sans contrôle MIME | Liste blanche audio/vidéo | `voice/transcribe/route.ts` |
+| Facture d'abonnement à 0 € marquée « PAYEE » quand le payload Polar n'a pas de montant | Facture créée UNIQUEMENT si le montant réel est présent ; sinon avertissement honnête (aucune fausse preuve de paiement) | `webhook/polar/route.ts` |
+| Écran console plateforme affichait un état « SMTP » sans objet (aucun connecteur SMTP — Resend seul canal) | État Resend + Document AI + Azure affichés à la place | `platform/overview/route.ts`, `platform-view.tsx` |
+| `N8N_REPRISE_WORKFLOW` (export UI) sans en-tête de signature → rejeté 403 à l'import | Définition alignée sur le workflow réel signé (Corps signé + Crypto HMAC + 4 en-têtes) | `connectors/n8n.ts` |
+| `ignoreBuildErrors: true` dans next.config (type safety désactivée au build) | `false` — tsc à 0 erreur exigé ; en-têtes de sécurité applicatifs ajoutés (nosniff, XFO DENY, Referrer-Policy, Permissions-Policy, CSP) | `next.config.ts` |
+
+### 8.2 Données et performance
+
+| Écart | Correction |
+|---|---|
+| Aucun index sur les clés de filtrage (S1) — rédhibitoire à la migration PostgreSQL | `@@index` ajoutés : `Invite(org,status)`, `CreditLedger(org,createdAt)`, `UsageMetering(org,nature,createdAt)`, `File(org,status)`, `FileReception(org,status)`+`(fileId)`, `DocumentChunk(fileId)`, `ProcessingJob(status,nextRetryAt)`+`(org)`, `Message(conversationId)`, `Notification(org,readAt)`, `AuditLog(org,createdAt)` |
+| Code groupe sans contrainte d'unicité (S2) — course + résolution ambiguë | `@@unique([organizationId, code])` sur `WaGroup` + gestion P2002 → `code_groupe_deja_utilise` |
+| Champs morts `Message.audioBase64Meta`, `FinancialOperation.justificationFileId` | Supprimés (aucune référence réelle) |
+| Limites de plan non appliquées : `maxClients`, `maxGroups`, `minIntervalMinutes` | Appliquées côté serveur (clients, groupes, automatisations) avec erreurs i18n dédiées |
+| Devise inconnue stockée `"???"` (polluait l'agrégation par devise) | Code ISO 4217 `XXX` |
+| Typo registre `DREDIT_ACCORDE` | `CREDIT_ACCORDE` |
+| Migration versionnée `1_index_unicite_hygiene` | Créée (SQLite, dialecte de la baseline ; procédure Neon documentée) |
+| Table `Plan` vide après réinitialisation de la sandbox | Re-seed exécuté (`scripts/seed-plans.ts`) : TRIAL/STANDARD/ENTREPRISE vérifiés en base |
+
+### 8.3 UI/UX (audit 13 vues + composants)
+
+| Écart | Correction |
+|---|---|
+| Jauge de crédits codée `/500` (quota d'essai) fausse sur STANDARD (3 000) / ENTREPRISE (20 000) | `/api/auth/session` renvoie `planMonthlyCredits` réel ; jauge sur le quota du plan, nombre seul si plan inconnu |
+| Liens « À propos / CGU / Confidentialité » inertes (`href="#"`) | **Espace légal réel** in-app (respect de l'architecture SPA) : contenu substantiel FR/EN décrivant le traitement réel (Document AI, Azure, Drive client, Polar, Resend, Meta, Neon), dialogue accessible |
+| Actions d'écriture visibles à LECTEUR/EMPLOYE vouées au 403 (5 vues) | Masquage par rôle : dépôt (LECTEUR), corrections/reprises (LECTEUR), création+pause automatisations (EMPLOYE/LECTEUR), décisions d'approbation (EMPLOYE/LECTEUR), génération de livrables (LECTEUR) |
+| Statuts d'exécution `EN_ATTENTE/RETRY_PROGRAMME/ECHEC_DEFINITIF` sans clé i18n ni style | Clés FR/EN ajoutées + `runPill` complet |
+| Échec de chargement du tableau de bord rendu comme registre vide avec faux CTA | État d'erreur explicite + bouton Réessayer |
+| Sélecteur de langue du profil inerte (enregistrait `user.locale` sans appliquer) | `setLang` appliqué — l'interface change réellement |
+| `<html lang>` figé à `fr` | Suit la langue active (effet dans `I18nProvider`) |
+| Assistant d'onboarding auto-ouvert pour tous les rôles (LECTEUR → 4 étapes vouées au 403) | Ouvert uniquement PROPRIETAIRE/ADMINISTRATEUR |
+| Refus `forbidden` affiché brut dans les toasts | Table de traduction des codes d'erreur serveur (forbidden, limites d'offre, doublon de code, trop de tentatives, crédits) |
+| Clés d'audit manquantes (ESSAI_EXPIRE, EXPORT_CSV, PURGE_EXECUTEE, ABONNEMENT_*, connexions, MFA, livrables) | Ajoutées FR/EN (parité 890→922 clés vérifiée par tsc) |
+
+### 8.4 Vérifications d'exécution de la session
+
+- `bunx tsc --noEmit` → **0 erreur** (exit 0) ; `bun run lint` → **0 erreur**.
+- Serveur de développement redémarré (config modifiée) : `GET /api/health` → 200 `{"status":"operational","scheduler":"actif"}`.
+- **Parcours navigateur réels** (agent-browser, viewport desktop 1280 puis mobile 390) :
+  1. Landing → CGU (contenu réel affiché) → Confidentialité ;
+  2. Inscription organisation réelle → onboarding 5 étapes (client `FINCLI`, groupe `FINGRP`) ;
+  3. Dépôt PDF réel → classification Facture → **archivage avec preuve** (`fs.stat confirmé : 374 octets · sha256 re-vérifié · storage/archives/org-…/GENERAL/DEPOTS_DIRECTS/Facture/2026/11/…`) → cachet ARCHIVÉ ;
+  4. Extraction financière automatique → 459,99 € en « À vérifier » (jamais auto-validé) → validation humaine ADMIN → **VALIDÉ** ;
+  5. Vue d'ensemble : compteurs réels (2 clients actifs, 498 crédits), jauge sur le quota réel du plan (100 % de 500) ;
+  6. Navigation mobile fonctionnelle (onglets horizontaux, déconnexion accessible).
+- **Batterie de sécurité API exécutée en direct** (16 contrôles) : anonyme → 401 sur API métier ; `POST /api/health` sans signature → 403 ; signature invalide → 403 ; `scheduler/tick` sans signature → 403 ; webhook WhatsApp sans identifiants → 503 `whatsapp_non_configure` (dormant honnête, fail-closed) ; webhook Polar sans signature → 503 honnête ; **isolation inter-organisations** : B ne voit pas (liste), ne modifie pas (PATCH 400), ne supprime pas (DELETE 400) les ressources de A ; PATCH automatisations anonyme → 401 ; console plateforme refusée à un non-opérateur → 403. **16/16 conformes.**
+- Journal serveur : aucune erreur runtime pendant toute la session.
+- Organisation de test de sécurité purgées après exécution ; organisation de démonstration conservée (données réelles, traçables).

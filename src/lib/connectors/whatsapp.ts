@@ -9,7 +9,9 @@ import { createHmac, timingSafeEqual } from "crypto";
 const GRAPH = "https://graph.facebook.com/v21.0";
 
 export function whatsappConfigured(): boolean {
-  return Boolean(process.env.WHATSAPP_APP_SECRET && process.env.WHATSAPP_TOKEN);
+  // PHONE_NUMBER_ID est requis pour l'ENVOI (réponse agent, accusés) —
+  // un garde incomplet produisait des échecs silencieux à l'envoi (audit P2).
+  return Boolean(process.env.WHATSAPP_APP_SECRET && process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
 }
 
 /** Vérification du hub.challenge (Meta) — comparaison en temps constant sur buffers, avec garde de longueur (audit P1). */

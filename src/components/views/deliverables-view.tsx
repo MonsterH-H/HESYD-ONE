@@ -61,6 +61,10 @@ export function DeliverablesView() {
   const { call, loading } = useApi();
   const setDetailFileId = useAppStore((s) => s.setDetailFileId);
   const setView = useAppStore((s) => s.setView);
+  const role = useAppStore((s) => s.session?.role);
+  // POST /api/deliverables exige EMPLOYE+ côté serveur — masqué pour un LECTEUR
+  // au lieu de provoquer un 403 (audit UI P2).
+  const peutGenerer = role !== "LECTEUR";
 
   const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -162,10 +166,12 @@ export function DeliverablesView() {
     <div className="space-y-4 max-w-[1100px]">
       <div className="flex items-center justify-between gap-3">
         <p className="text-[13px] text-muted-foreground">{t("deliverables.subtitle")}</p>
-        <Button onClick={() => setOpen(true)} className="shrink-0">
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          {t("deliverables.generate")}
-        </Button>
+        {peutGenerer && (
+          <Button onClick={() => setOpen(true)} className="shrink-0">
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            {t("deliverables.generate")}
+          </Button>
+        )}
       </div>
 
       <div className="registre border rounded-md bg-card" role="list" aria-label={t("deliverables.title")}>

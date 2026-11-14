@@ -77,6 +77,9 @@ export function AppShell() {
   const { t } = useI18n();
 
   const checkOnboarding = useCallback(async () => {
+    // L'assistant de démarrage n'ouvre que pour les rôles capables de réaliser
+    // les étapes (audit UI P2 — un LECTEUR voyait 4 étapes vouées au 403).
+    if (!session || !(session.role === "PROPRIETAIRE" || session.role === "ADMINISTRATEUR")) return;
     try {
       const res = await fetch("/api/dashboard", { cache: "no-store" });
       const data = await res.json();
@@ -87,7 +90,7 @@ export function AppShell() {
     } catch {
       // État suivant : le tableau de bord affichera les étapes manquantes
     }
-  }, [setOnboardingOpen]);
+  }, [setOnboardingOpen, session]);
 
   useEffect(() => {
     checkOnboarding();
@@ -133,7 +136,7 @@ export function AppShell() {
     <div className="min-h-screen flex flex-col bg-background">
       <div className="flex flex-1">
         {/* Colonne de navigation — registre */}
-        <nav aria-label="Navigation principale" className="hidden md:flex w-60 shrink-0 flex-col border-r bg-background sticky top-0 h-screen">
+        <nav aria-label={t("nav.mainNav")} className="hidden md:flex w-60 shrink-0 flex-col border-r bg-background sticky top-0 h-screen">
           <div className="px-5 py-5">
             <div className="flex items-center gap-2.5">
               <HesydMark className="h-8 w-8" />
@@ -229,12 +232,20 @@ export function AppShell() {
               <span className="text-muted-foreground">{t("common.credits")}</span>
               <span className="tnum font-display font-semibold">{session?.credits ?? 0}</span>
             </div>
-            <div className="h-1.5 rounded-full bg-secondary overflow-hidden" role="progressbar" aria-valuenow={Math.min(100, Math.round(((session?.credits ?? 0) / 500) * 100))}>
+            {/* Jauge sur le quota RÉEL du plan (audit UI P1 — plus de /500 en dur) ;
+                sans plan connu, le nombre seul est affiché : jamais de jauge mensongère. */}
+            {session?.planMonthlyCredits ? (
               <div
-                className="h-full rounded-full bg-[var(--cachet)] transition-[width] duration-300"
-                style={{ width: `${Math.max(2, Math.min(100, ((session?.credits ?? 0) / 500) * 100))}%` }}
-              />
-            </div>
+                className="h-1.5 rounded-full bg-secondary overflow-hidden"
+                role="progressbar"
+                aria-valuenow={Math.min(100, Math.round(((session?.credits ?? 0) / session.planMonthlyCredits) * 100))}
+              >
+                <div
+                  className="h-full rounded-full bg-[var(--cachet)] transition-[width] duration-300"
+                  style={{ width: `${Math.max(2, Math.min(100, ((session?.credits ?? 0) / session.planMonthlyCredits) * 100))}%` }}
+                />
+              </div>
+            ) : null}
             <div className="flex items-center justify-between gap-2">
               <button
                 type="button"

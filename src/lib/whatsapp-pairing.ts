@@ -1,3 +1,4 @@
+import { randomInt } from "crypto";
 import { db } from "@/lib/db";
 
 /**
@@ -11,8 +12,9 @@ import { db } from "@/lib/db";
 
 const CODE_TTL_MS = 15 * 60 * 1000;
 
+/** Code à 6 chiffres cryptographiquement imprévisible (audit P2 — Math.random interdit pour un secret). */
 export function generatePairingCode(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(randomInt(100000, 1000000));
 }
 
 export async function createPairing(organizationId: string, userId: string): Promise<{ id: string; code: string; expiresAt: Date }> {
@@ -23,6 +25,12 @@ export async function createPairing(organizationId: string, userId: string): Pro
   });
   for (let attempt = 0; attempt < 5; attempt++) {
     const code = generatePairingCode();
+    // Unicité GLOBALE du code parmi les appairages vivants (toutes organisations) :
+    // le webhook résout un code sans contexte d'organisation (audit P2 — ambiguïté inter-organisations).
+    const live = await db.whatsappPairing.findFirst({
+      where: { code, status: { in: ["EN_ATTENTE", "ACTIF"] }, expiresAt: { gt: new Date() } },
+    });
+    if (live) continue; // code déjà utilisé par une autre organisation : régénération
     try {
       const pairing = await db.whatsappPairing.create({
         data: { organizationId, userId, code, expiresAt: new Date(Date.now() + CODE_TTL_MS) },

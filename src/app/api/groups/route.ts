@@ -35,21 +35,37 @@ export async function POST(req: Request) {
     const client = await db.client.findFirst({ where: { id: body.data.clientId, organizationId: auth.organization.id } });
     if (!client) throw new Error("client_introuvable");
 
+    // Limite réelle de l'offre (Plan.maxGroups — appliquée, audit données)
+    const sub = await db.subscription.findUnique({ where: { organizationId: auth.organization.id } });
+    const plan = await db.plan.findUnique({ where: { code: sub?.planCode ?? "TRIAL" } });
+    if (plan) {
+      const activeGroups = await db.waGroup.count({ where: { organizationId: auth.organization.id, status: { not: "ARCHIVE" } } });
+      if (activeGroups >= plan.maxGroups) throw new Error("limite_groupes_atteinte");
+    }
+
     // Un groupe ne devient ACTIF qu'après validation technique (CDC §11.2) : dépôt web = actif réel immédiat ; WhatsApp réel sans identifiants = EN_VERIFICATION
     const needsVerification = body.data.sourceType !== "DEPOT_WEB" && body.data.sourceType !== "DOSSIER_SURVEILLE" && !whatsappConfigured();
     const code = body.data.code.toUpperCase().trim().replace(/\s+/g, "_");
-    const group = await db.waGroup.create({
-      data: {
-        organizationId: auth.organization.id,
-        clientId: client.id,
-        code,
-        name: body.data.name.trim(),
-        sourceType: body.data.sourceType,
-        whatsappGroupId: body.data.whatsappGroupId?.trim() || null,
-        collectionStatus: needsVerification ? "A_CONFIGURER" : "ACTIF",
-        status: "ACTIF",
-      },
-    });
+    let group;
+    try {
+      group = await db.waGroup.create({
+        data: {
+          organizationId: auth.organization.id,
+          clientId: client.id,
+          code,
+          name: body.data.name.trim(),
+          sourceType: body.data.sourceType,
+          whatsappGroupId: body.data.whatsappGroupId?.trim() || null,
+          collectionStatus: needsVerification ? "A_CONFIGURER" : "ACTIF",
+          status: "ACTIF",
+        },
+      });
+    } catch (e) {
+      // Contrainte @@unique([organizationId, code]) (audit S2) : course résolue
+      // proprement côté serveur — pas de groupe en double.
+      if ((e as { code?: string }).code === "P2002") throw new Error("code_groupe_deja_utilise");
+      throw e;
+    }
     await logAudit({ organizationId: auth.organization.id, userId: auth.user.id, action: "GROUPE_CREE", entityType: "WAGroup", entityId: group.id, after: { code, sourceType: group.sourceType } });
     await db.onboardingProgress.updateMany({ where: { organizationId: auth.organization.id, groupCreated: false }, data: { groupCreated: true, groupAt: new Date() } });
     return { group, note: needsVerification ? "collecte_whatsapp_requiert_configuration_meta" : "collecte_activee_a_la_premiere_reception" };

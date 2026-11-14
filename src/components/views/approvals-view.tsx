@@ -7,6 +7,7 @@
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import { useApi, apiGet } from "@/hooks/use-api";
+import { useAppStore } from "@/store/app";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -89,6 +90,10 @@ function riskPill(risk: string, label: string) {
 export function ApprovalsView() {
   const { t } = useI18n();
   const { call } = useApi();
+  const role = useAppStore((s) => s.session?.role);
+  // POST /api/approvals/[id] exige ADMIN+ côté serveur (risque élevé) —
+  // les décisions sont masquées pour EMPLOYE/LECTEUR (audit UI P2).
+  const peutDecider = role === "PROPRIETAIRE" || role === "ADMINISTRATEUR";
 
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [selected, setSelected] = useState<Approval | null>(null);
@@ -197,7 +202,7 @@ export function ApprovalsView() {
                 )}
               </div>
 
-              {selected.status === "EN_ATTENTE" && (
+              {peutDecider && selected.status === "EN_ATTENTE" && (
                 <div className="flex items-center gap-2 pb-4">
                   {/* Bouton primaire unique du panneau : Approuver */}
                   <Button className="h-11 flex-1" disabled={deciding} onClick={() => void decide(selected, "APROUVER")}>

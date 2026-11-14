@@ -452,3 +452,56 @@ Revue indépendante exécutée par trois agents de revue distincts (WhatsApp+n8n
 | Storage local (repli déclaré) | OUI | OUI (fs réel) | OUI | OUI (preuves fs.stat+sha256 en base) | Sandbox seulement |
 
 **Aucun statut n'a été transformé sans preuve** : chaque « NON » est un blocage externe enregistré (E1–E8), aucune simulation ne le masque.
+
+---
+
+## MISSION FINALE — FINALISATION INTÉGRALE ET LIVRAISON (14/11/2026, après-midi)
+
+Méthode : audit indépendant à **quatre agents** (sécurité des 63 routes API, conformité architecturale des connecteurs, UI/UX des 13 vues, modèle de données/pipelines) → corrections autonomes hiérarchisées P1→P3 → vérification navigateur réelle + batterie de sécurité API. Registre détaillé par correction (file:line) : `docs/TECHNICAL_DOCUMENTATION_REVIEW.md` §8.
+
+### Verdict de l'audit d'entrée
+
+- **Aucun P0** : pas de violation architecturale (Document AI = unique OCR confirmé exhaustivement — plus aucun appel vision dans src/ ; Stripe totalement absent ; Polar idempotent atomique ; isolation multi-tenant systématique par `organizationId` dérivé de la session).
+- 1 P1 (en-têtes HMAC `x-hesy-*` de `POST /api/health` — contrôle inopérant), 1 P1 UI (jauge crédits /500 en dur), ~15 P2, ~20 P3. **Tous les P1/P2 corrigés dans cette session** ; P3 priorisés corrigés également.
+
+### Corrections livrées (toutes vérifiées tsc 0 erreur + lint 0 erreur + exécution)
+
+| Domaine | Corrections |
+|---|---|
+| Sécurité | Tick externe signé réparé (`x-hesyd-*`) ; codes d'appairage `crypto.randomInt` + unicité globale ; gardes de rôle (PATCH automatisations, révocation appairage) ; Drive authorize non destructif (refresh token préservé) + callback résolu par state sur toutes les lignes en attente (fin de la course inter-organisations) ; option `vision` du provider IA supprimée (vecteur OCR alternatif) ; injection CSV neutralisée ; Host-header hardening (`app_url_requise_en_production`) ; bornes import (10 Mo / 5 000 lignes) + MIME audio ; rate limit sur la consommation des jetons de réinitialisation ; CSP + XFO + nosniff + Referrer-Policy + Permissions-Policy applicatifs ; `ignoreBuildErrors: false` |
+| Intégrité des données | Déduplication applicative sans groupe (NULL SQLite) ; `rawPath` réel utilisé par correct/retry (plus de `matiere_premiere_absente` après assainissement de nom) ; unicité code groupe en contrainte DB + P2002 géré ; 12 index de performance ; champs morts supprimés ; limites de plan appliquées (maxClients/maxGroups/minIntervalMinutes) ; devise inconnue = `XXX` ISO |
+| Audit & purge | Journalisation ajoutée : réinitialisation MDP, demande de reset, MFA enable/disable, connexions (+MFA), génération de livrables ; purge étendue aux payloads WhatsApp, tâches agent, approbations, livrables physiques, opérations financières, imports, jetons OAuth avec garde `path.relative` stricte ; archives Drive du client explicitement conservées (compteur distinct, message honnête) |
+| UI/UX | Jauge sur le quota réel du plan (`planMonthlyCredits` de la session) ; **espace légal réel** (À propos / CGU / Confidentialité, FR/EN, contenu décrivant les sous-traitants effectivement implémentés) ; actions masquées par rôle dans 5 vues (fin des 403 prévisibles) ; i18n des statuts d'exécution + actions d'audit (parité FR/EN) ; état d'erreur réel du tableau de bord ; langue du profil appliquée + `<html lang>` dynamique ; onboarding réservé aux rôles capables ; codes d'erreur serveur traduits |
+| Facturation honnête | Facture d'abonnement créée uniquement avec le montant réel du payload Polar (plus de 0 € « PAYEE ») |
+| Écosystème | État plateforme : Resend/Document AI/Azure affichés (vestige SMTP supprimé) ; workflow d'export n8n aligné sur le contrat signé réel |
+
+### Vérifications d'exécution (preuves)
+
+- `bunx tsc --noEmit` : **0 erreur** · `bun run lint` : **0 erreur** · serveur redémarré : `/api/health` 200.
+- **Parcours navigateur réels** (agent-browser) : inscription réelle → onboarding (client+groupe) → dépôt PDF réel → classification Facture → **archivage avec preuve** (`fs.stat confirmé : 374 octets · sha256 re-vérifié · chemin Client/Groupe/Catégorie/Année/Mois`) → cachet ARCHIVÉ → extraction financière automatique (459,99 € « À vérifier ») → **validation humaine → VALIDÉ** → vue d'ensemble (compteurs réels, jauge 498/500) → CGU/Confidentialité réelles → navigation mobile (390 px) fonctionnelle.
+- **Batterie de sécurité API (16 contrôles, exécutés en direct)** : 401 anonyme sur API métier · 403 sur `health`/`tick` sans signature · 403 signature invalide · 503 honnête webhooks WhatsApp/Polar sans identifiants (fail-closed) · **isolation cross-tenant** : liste invisible, PATCH 400, DELETE 400 sur les ressources de l'autre organisation · PATCH automatisations anonyme 401 · console plateforme 403 pour un non-opérateur. **16/16 conformes.**
+- Journal serveur : **aucune erreur runtime**.
+
+### État final par intégration (5 niveaux — inchangés sans preuve nouvelle)
+
+| Intégration | Implémentée | Configurée | Connectée | Testée (réel) | Validée (prod) |
+|---|---|---|---|---|---|
+| Google Document AI (OCR) | OUI | NON (E2b) | NON | NON | NON |
+| Azure AI Foundry (IA générale) | OUI (texte uniquement) | NON (E8) | NON | NON (GLM repli journalisé) | NON |
+| Neon PostgreSQL | Schéma + migrations prêts | NON (E6) | NON | SQLite dev réel | NON |
+| Resend | OUI | NON (E4) | NON | NON | NON |
+| Polar | OUI | NON (E3) | NON | Contrats vérifiés par lecture doc | NON |
+| n8n | OUI (contrat signé + workflows conformes) | NON (E5) | NON | NON (scheduler in-process réel actif) | NON |
+| WhatsApp Business Cloud API | OUI | NON (E1) | NON | NON | NON |
+| Google Drive API | OUI | NON (E2) | NON | NON | NON |
+| Stockage local (repli déclaré) | OUI | OUI | OUI | **OUI — preuves fs.stat+sha256 en base** | Sandbox |
+
+### Reste ouvert (inchangé, bloqué externe)
+
+E1–E8 (identifiants externes), build VPS (E7 — interdit dans cette sandbox), upload Drive resumable (P2, avant production Drive), RLS PostgreSQL (dépend E6), jeu d'évaluation Promptfoo (hors sandbox).
+
+### Dépôt git
+
+- `.env`, `.zscripts/`, `.initial_snapshot.json` **retirés du tracking** et ignorés (le `.env` committé ne contenait que `DATABASE_URL` local — aucun secret ; corrigé par précaution).
+- `.gitignore` réorganisé : secrets en tête, métadonnées sandbox, données réelles locales.
+- Pousse vers GitHub avec un token d'accès **jamais écrit dans le dépôt** ; rotation du token recommandée après usage.

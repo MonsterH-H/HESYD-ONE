@@ -4,6 +4,7 @@ import { verifyPassword, createSession } from "@/lib/auth";
 import { handle, readJson } from "@/lib/api";
 import { lockRemaining, registerFailure, clearFailures, clientIp } from "@/lib/rate-limit";
 import { issueAuthToken } from "@/lib/auth-tokens";
+import { logAudit } from "@/lib/audit";
 
 const schema = z.object({ email: z.string().email(), password: z.string().min(1).max(72) });
 
@@ -56,6 +57,8 @@ export async function POST(req: Request) {
     clearFailures(email, ip);
     await db.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
     await createSession(user.id);
+    // Journal d'audit (audit §2 — succès de connexion tracé, sans org à ce stade)
+    await logAudit({ userId: user.id, action: "CONNEXION", entityType: "User", entityId: user.id, after: { ip } });
     return { ok: true, user: { id: user.id, name: user.name, email: user.email } };
   });
 }

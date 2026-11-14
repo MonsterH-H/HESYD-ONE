@@ -83,13 +83,15 @@ export function OverviewView() {
   }
 
   if (!data) {
+    // État d'erreur RÉEL (audit UI P2 — l'échec de chargement n'est plus rendu
+    // comme un registre vide avec un faux CTA de dépôt) : message explicite + rechargement.
     return (
       <div className="mx-auto max-w-[1100px]">
         <p className="border border-[var(--bordure)] rounded-lg px-6 py-10 text-center text-[13.5px] text-muted-foreground">
-          {t("files.empty")}
+          {t("common.errorLoadDashboard")}
         </p>
         <div className="mt-4 flex justify-end">
-          <Button onClick={() => setView("files")}>{t("files.upload")}</Button>
+          <Button onClick={() => { setChargement(true); window.location.reload(); }}>{t("common.retry")}</Button>
         </div>
       </div>
     );

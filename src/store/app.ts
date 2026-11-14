@@ -25,6 +25,8 @@ export type SessionState = {
   };
   role: "PROPRIETAIRE" | "ADMINISTRATEUR" | "EMPLOYE" | "LECTEUR";
   credits: number;
+  /** Quota mensuel réel du plan actif (null : aucun plan chargé) — jauge honnête. */
+  planMonthlyCredits: number | null;
   isPlatformAdmin: boolean;
 };
 

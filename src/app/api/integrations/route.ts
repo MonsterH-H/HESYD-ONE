@@ -5,7 +5,7 @@ import { driveConfigured, buildAuthorizeUrl } from "@/lib/storage/drive";
 import { whatsappConfigured } from "@/lib/connectors/whatsapp";
 import { polarConfigured } from "@/lib/connectors/polar";
 import { n8nConfigured, N8N_REPRISE_WORKFLOW } from "@/lib/connectors/n8n";
-import { safeIntegrationConfig } from "@/lib/helpers";
+import { safeIntegrationConfig, safeJsonParse } from "@/lib/helpers";
 import { logAudit } from "@/lib/audit";
 import { randomBytes } from "crypto";
 
@@ -47,11 +47,19 @@ export async function POST(req: Request) {
   return handle(async () => {
     const auth = await requireRole("ADMINISTRATEUR");
     if (!driveConfigured()) throw new Error("identifiants_requis_variables_google_absentes");
+    // Aucune destruction de connexion existante (audit P2) : le refresh token
+    // chiffré est conservé et remplacé uniquement au callback réussi.
+    const existing = await db.integrationConnection.findFirst({
+      where: { organizationId: auth.organization.id, connector: "GOOGLE_DRIVE" },
+    });
+    const previous = safeJsonParse<{ refreshTokenEnc?: string }>(existing?.configJson ?? "", {});
     const state = randomBytes(16).toString("hex");
-    const body = { organizationId: auth.organization.id };
     await db.integrationConnection.updateMany({
       where: { organizationId: auth.organization.id, connector: "GOOGLE_DRIVE" },
-      data: { status: "EN_ATTENTE_AUTH", configJson: JSON.stringify({ state, ...body }) },
+      data: {
+        status: "EN_ATTENTE_AUTH",
+        configJson: JSON.stringify({ state, organizationId: auth.organization.id, ...(previous.refreshTokenEnc ? { refreshTokenEnc: previous.refreshTokenEnc } : {}) }),
+      },
     });
     await logAudit({ organizationId: auth.organization.id, userId: auth.user.id, action: "DRIVE_AUTH_DEMARREE", entityType: "IntegrationConnection" });
     return { authorizeUrl: buildAuthorizeUrl(state) };

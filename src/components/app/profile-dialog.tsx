@@ -364,7 +364,7 @@ function MfaSection() {
 
 /** Formulaire monté à chaque ouverture (le contenu Radix se démonte à la fermeture) — aucune synchronisation par effet. */
 function ProfileForm() {
-  const { t } = useI18n();
+  const { t, setLang } = useI18n();
   const { call } = useApi();
   const session = useAppStore((s) => s.session);
   const setOpen = useAppStore((s) => s.setProfileOpen);
@@ -441,7 +441,15 @@ function ProfileForm() {
 
         <div className="space-y-1.5">
           <Label className="text-[12.5px]">{t("profile.locale")}</Label>
-          <Select value={locale} onValueChange={setLocale}>
+          <Select
+            value={locale}
+            onValueChange={(v) => {
+              setLocale(v);
+              // L'interface change réellement de langue (audit UI P2 — le
+              // sélecteur enregistrait user.locale sans appliquer setLang).
+              if (v === "fr" || v === "en") setLang(v);
+            }}
+          >
             <SelectTrigger className="w-full h-11" aria-label={t("profile.locale")}>
               <SelectValue />
             </SelectTrigger>

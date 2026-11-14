@@ -125,6 +125,10 @@ export function FilesView() {
   const { t } = useI18n();
   const detailFileId = useAppStore((s) => s.detailFileId);
   const setDetailFileId = useAppStore((s) => s.setDetailFileId);
+  const role = useAppStore((s) => s.session?.role);
+  // POST /api/files/upload exige EMPLOYE+ côté serveur (audit sécurité) —
+  // l'UI masque le dépôt pour un LECTEUR au lieu de provoquer un 403.
+  const peutDeposer = role !== "LECTEUR";
 
   // — Liste —
   const [files, setFiles] = useState<FileRecord[] | null>(null);
@@ -333,7 +337,7 @@ export function FilesView() {
           <h2 className="font-display text-[20px] font-semibold">{t("files.title")}</h2>
           <p className="mt-1 text-[13px] text-muted-foreground">{t("files.subtitle")}</p>
         </div>
-        <Button onClick={() => setUploadOpen(true)}>{t("files.upload")}</Button>
+        {peutDeposer && <Button onClick={() => setUploadOpen(true)}>{t("files.upload")}</Button>}
       </div>
 
       {/* Recherche + filtres */}

@@ -38,7 +38,7 @@ export async function createTrialOrganization(userId: string, organizationName: 
   });
 
   // Crédits d'essai réels + connecteurs initialisés (états honnêtes)
-  await grantCredits(organization.id, TRIAL_CREDITS, "DREDIT_ACCORDE", "Crédits d'essai (14 jours)");
+  await grantCredits(organization.id, TRIAL_CREDITS, "CREDIT_ACCORDE", "Crédits d'essai (14 jours)");
   await db.integrationConnection.create({
     data: {
       organizationId: organization.id,

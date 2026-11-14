@@ -37,10 +37,18 @@ export async function POST(req: Request) {
     const count = await db.automation.count({ where: { organizationId: auth.organization.id, status: "ACTIVE" } });
     if (plan && count >= plan.maxAutomations) throw new Error("limite_automatisations_atteinte");
 
-    // validation cron réelle (5 champs)
+    // validation cron réelle (5 champs) + intervalle minimal de l'offre (Plan.minIntervalMinutes — appliqué, audit données)
     const fields = body.data.cronExpr.trim().split(/\s+/);
     if (fields.length !== 5 || fields.some((f) => !/^(\*|\d+(?:-\d+)?(?:\/\d+)?|\*\/\d+)$/.test(f))) {
       throw new Error("expression_cron_invalide");
+    }
+    if (plan) {
+      const [min, hour] = fields;
+      let intervalMin: number;
+      if (min.startsWith("*/")) intervalMin = Math.max(1, parseInt(min.slice(2), 10) || 1);
+      else if (min === "*") intervalMin = 1;
+      else intervalMin = hour === "*" ? 60 : 1440; // minute fixe : horaire ou quotidien au minimum
+      if (intervalMin < plan.minIntervalMinutes) throw new Error("intervalle_cron_trop_court");
     }
 
     const automation = await db.automation.create({
@@ -61,6 +69,9 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   return handle(async () => {
     const auth = await requireAuth();
+    // Garde de rôle réelle (audit P2) : (ré)activer une automatisation consomme
+    // des crédits — réservé aux administrateurs, comme POST.
+    if (!["PROPRIETAIRE", "ADMINISTRATEUR"].includes(auth.role)) throw new Error("forbidden");
     const body = PATCH_SCHEMA.and(z.object({ id: z.string() })).safeParse(await readJson<unknown>(req));
     if (!body.success) throw new Error("donnees_incompletes");
     const automation = await db.automation.findFirst({ where: { id: body.data.id, organizationId: auth.organization.id } });

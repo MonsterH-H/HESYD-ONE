@@ -20,6 +20,12 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     if (stored === "en" || stored === "fr") setLang(stored);
   }, [setLang]);
 
+  // L'attribut lang du document suit réellement la langue active
+  // (audit UI P3 — il restait figé à « fr » lors du passage en EN).
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
+
   const t = (key: string, fallback?: string) => DICTS[lang][key] ?? DICTS["fr"][key] ?? fallback ?? key;
   return <Ctx.Provider value={{ t, lang, setLang }}>{children}</Ctx.Provider>;
 }

@@ -167,7 +167,9 @@ export async function recordFinancialCandidates(params: FinancialCandidateParams
         sourceKey,
         label: candidate.label,
         amountCents: candidate.amountCents,
-        currency: candidate.currency ?? "???",
+        // XXX = code ISO 4217 « devise inconnue » — jamais « ??? » qui polluait
+        // l'agrégation groupBy(devise) côté registre (audit S9).
+        currency: candidate.currency ?? "XXX",
         operationDate: candidate.operationDate,
         // Statut honnête : EXTRAITE si claire, A_VERIFIER si ambiguë — jamais VALIDE ici.
         status: candidate.needsReview ? "A_VERIFIER" : "EXTRAITE",

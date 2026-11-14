@@ -20,7 +20,17 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
     if (!file.client || !file.group) throw new Error("rattachement_manquant");
     if (file.status === "ARCHIVE") throw new Error("deja_archive");
 
-    const data = await readArchivedFile(`storage/received/${auth.organization.slug}/${file.originalFilename}`);
+    // Matière première : chemin RÉEL de la réception (rawPath), avec repli sur
+    // le chemin reconstruit pour les lignes antérieures au durcissement.
+    const reception = await db.fileReception.findFirst({
+      where: { fileId: id, organizationId: auth.organization.id, rawPath: { not: null } },
+      orderBy: { receivedAt: "desc" },
+      select: { rawPath: true },
+    });
+    const rawRel = reception?.rawPath ?? `storage/received/${auth.organization.slug}/${file.originalFilename}`;
+    const data = await readArchivedFile(rawRel).catch(() => {
+      throw new Error("matiere_premiere_absente");
+    });
     // Reprise vers la destination réellement configurée : le Drive du CLIENT si
     // connecté (propriété documentaire), sinon repli local honnête.
     const result = await archiveToConfiguredDestination(

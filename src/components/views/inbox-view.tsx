@@ -59,6 +59,10 @@ export function InboxView() {
   const { call, loading } = useApi();
   const setDetailFileId = useAppStore((s) => s.setDetailFileId);
   const setView = useAppStore((s) => s.setView);
+  const role = useAppStore((s) => s.session?.role);
+  // Corrections et reprises exigent EMPLOYE+ côté serveur (audit sécurité) —
+  // masquées pour un LECTEUR plutôt que vouées au 403 (audit UI P2).
+  const peutCorriger = role !== "LECTEUR";
   const [data, setData] = useState<InboxData | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -203,19 +207,19 @@ export function InboxView() {
                         {t("files.detail.title")}
                       </button>
                     )}
-                    {isFile && file.status === "A_VERIFIER" && (
+                    {peutCorriger && isFile && file.status === "A_VERIFIER" && (
                       <Button variant="outline" size="sm" className="h-9" onClick={() => setCorrectingFile(file)}>
                         <ClipboardCheck className="h-4 w-4" />
                         {t("inbox.correct")}
                       </Button>
                     )}
-                    {!isFile && reception.status !== "ERREUR_DEFINITIVE" && (
+                    {peutCorriger && !isFile && reception.status !== "ERREUR_DEFINITIVE" && (
                       <Button variant="outline" size="sm" className="h-9" disabled={busyId === id || loading} onClick={() => retryReception(reception.id)}>
                         <RefreshCw className={`h-4 w-4 ${busyId === id ? "animate-spin" : ""}`} />
                         {t("inbox.retry")}
                       </Button>
                     )}
-                    {isFile && file.status === "A_VERIFIER" && (
+                    {peutCorriger && isFile && file.status === "A_VERIFIER" && (
                       <Button variant="outline" size="sm" className="h-9" disabled={busyId === id || loading} onClick={() => retryFile(file.id)}>
                         <RefreshCw className={`h-4 w-4 ${busyId === id ? "animate-spin" : ""}`} />
                         {t("inbox.retry")}

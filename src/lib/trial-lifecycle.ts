@@ -148,12 +148,15 @@ export async function runTrialLifecycle(): Promise<{ reminders: number; expired:
     purged++;
     const purge = await purgeOrganizationData(org.id, org.slug);
     const titre = "Purge des données documentaires effectuée";
-    const message = `La purge programmée de « ${org.name} » a été exécutée : ${purge.filesDeleted} document(s) supprimé(s), ${purge.bytesFreed} octets libérés. Les comptes, l'audit et les factures sont conservés comme preuve du traitement.`;
+    const driveNote = purge.driveFilesKept > 0
+      ? ` ${purge.driveFilesKept} document(s) archivé(s) dans le Google Drive du client y restent conservés — ils appartiennent au client et ne sont pas supprimés par la plateforme.`
+      : "";
+    const message = `La purge programmée de « ${org.name} » a été exécutée : ${purge.filesDeleted} document(s) supprimé(s) des registres de la plateforme, ${purge.bytesFreed} octets libérés.${driveNote} Les comptes, l'audit et les factures sont conservés comme preuve du traitement.`;
     if (resendConfigured()) {
       await emailProprietaire(
         org,
         titre,
-        `<p>La purge programmée de « ${org.name} » a été exécutée le ${new Date().toLocaleDateString("fr-FR")}.</p><p>${purge.filesDeleted} document(s) supprimé(s), ${purge.bytesFreed} octets libérés. Les comptes, l'audit et les factures sont conservés comme preuve du traitement.</p>`,
+        `<p>La purge programmée de « ${org.name} » a été exécutée le ${new Date().toLocaleDateString("fr-FR")}.</p><p>${purge.filesDeleted} document(s) supprimé(s) des registres de la plateforme, ${purge.bytesFreed} octets libérés.${driveNote ? " " + driveNote : ""} Les comptes, l'audit et les factures sont conservés comme preuve du traitement.</p>`,
         "PURGE_EXECUTEE_EMAIL",
       );
     }
@@ -184,15 +187,27 @@ function reminderField(k: "J7" | "J3" | "J1"): "reminderJ7At" | "reminderJ3At" |
  * factures sont conservés (preuve du traitement). Retourne un compte rendu
  * horodaté — jamais « purge simulée ».
  */
-export async function purgeOrganizationData(organizationId: string, orgSlug: string): Promise<{ filesDeleted: number; bytesFreed: number }> {
+export async function purgeOrganizationData(organizationId: string, orgSlug: string): Promise<{ filesDeleted: number; bytesFreed: number; driveFilesKept: number }> {
   const files = await db.file.findMany({ where: { organizationId } });
   let filesDeleted = 0;
   let bytesFreed = 0;
+  let driveFilesKept = 0;
+  const cwd = process.cwd();
   for (const f of files) {
+    if (f.archivedPath?.startsWith("drive://")) {
+      // Archives déposées dans le Drive du CLIENT : HESYD ONE ne les supprime
+      // pas (elles appartiennent au client) — la purge ne porte que sur les
+      // registres applicatifs. Compte rendu distinct et honnête (audit P2).
+      driveFilesKept++;
+      continue;
+    }
     if (f.archivedPath) {
       try {
-        const full = path.resolve(path.join(process.cwd(), f.archivedPath));
-        if (full.startsWith(process.cwd())) {
+        const full = path.resolve(path.join(cwd, f.archivedPath));
+        // Garde stricte par path.relative (audit S6 — un simple startsWith
+        // laissait passer les répertoires frères de préfixe).
+        const rel = path.relative(cwd, full);
+        if (rel && !rel.startsWith("..") && !path.isAbsolute(rel)) {
           const stat = await fs.stat(full);
           await fs.unlink(full);
           bytesFreed += stat.size;
@@ -204,10 +219,13 @@ export async function purgeOrganizationData(organizationId: string, orgSlug: str
     filesDeleted++;
   }
   // Matière première conservée pour reprise : purgée aussi (fin de vie)
-  const receivedDir = path.join(process.cwd(), "storage", "received", orgSlug);
+  const receivedDir = path.join(cwd, "storage", "received", orgSlug);
   await fs.rm(receivedDir, { recursive: true, force: true }).catch(() => undefined);
-  const archivesDir = path.join(process.cwd(), "storage", "archives", orgSlug);
+  const archivesDir = path.join(cwd, "storage", "archives", orgSlug);
   await fs.rm(archivesDir, { recursive: true, force: true }).catch(() => undefined);
+  // Livrables physiques (PDF/DOCX) générés pour cette organisation (audit S5)
+  const deliverablesDir = path.join(cwd, "storage", "deliverables", orgSlug);
+  await fs.rm(deliverablesDir, { recursive: true, force: true }).catch(() => undefined);
 
   // Registres documentaires (les cascades emportent chunks/extractions)
   await db.file.deleteMany({ where: { organizationId } });
@@ -219,6 +237,18 @@ export async function purgeOrganizationData(organizationId: string, orgSlug: str
   await db.memoryItem.deleteMany({ where: { organizationId } });
   await db.automation.deleteMany({ where: { organizationId } });
   await db.whatsappPairing.deleteMany({ where: { organizationId } });
+  // Données personnelles / métier résiduelles (audit S5 — RGPD/minimisation) :
+  await db.agentTask.deleteMany({ where: { organizationId } });
+  await db.approval.deleteMany({ where: { organizationId } });
+  await db.webhookEvent.deleteMany({ where: { organizationId } }); // payloadJson = messages WhatsApp bruts
+  await db.financialOperation.deleteMany({ where: { organizationId } }); // opérations métier de l'organisation
+  await db.importBatch.deleteMany({ where: { organizationId } }); // lignes d'import en cascade
+  await db.notification.deleteMany({ where: { organizationId } });
+  await db.integrationConnection.deleteMany({ where: { organizationId } }); // jetons OAuth chiffrés
+  await db.onboardingProgress.deleteMany({ where: { organizationId } });
+  // Conservés volontairement comme preuve du traitement (décision produit
+  // documentée) : comptes, journal d'audit, factures et événements/registres
+  // d'abonnement et de crédits (SubscriptionEvent, CreditLedger, UsageMetering).
 
   await db.organization.update({ where: { id: organizationId }, data: { status: "PURGE", purgeScheduledAt: null } });
   await logAudit({
@@ -226,7 +256,7 @@ export async function purgeOrganizationData(organizationId: string, orgSlug: str
     action: "PURGE_EXECUTEE",
     entityType: "Organization",
     entityId: organizationId,
-    after: { filesDeleted, bytesFreed },
+    after: { filesDeleted, bytesFreed, driveFilesKept },
   });
-  return { filesDeleted, bytesFreed };
+  return { filesDeleted, bytesFreed, driveFilesKept };
 }

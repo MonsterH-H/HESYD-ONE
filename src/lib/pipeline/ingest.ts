@@ -163,16 +163,21 @@ export async function ingestDocument(params: IngestParams): Promise<IngestResult
         .catch(() => undefined);
     }
 
-    // 3bis. Déduplication au sein du groupe (CDC §11.6 : unicité org+groupe+sha256).
-    // Un fichier ARCHIVE et entièrement traité → doublon pur. Un fichier bloqué avant
-    // archivage, ou archivé mais jamais indexé (crédits épuisés au premier passage),
-    // → reprise réelle du traitement restant.
+    // 3bis. Déduplication (CDC §11.6 : unicité org+groupe+sha256). Un fichier
+    // ARCHIVE et entièrement traité → doublon pur. Un fichier bloqué avant
+    // archivage, ou archivé mais jamais indexé (crédits épuisés au premier
+    // passage), → reprise réelle du traitement restant. Sans groupe, la
+    // déduplication est faite au niveau application (audit S4 : SQLite traite
+    // les NULL comme distincts dans l'index unique — la contrainte SQL ne
+    // dédoupe pas les fichiers rattachés au client seul).
     let file: Awaited<ReturnType<typeof db.file.create>> | null = null;
     let repriseIndex = false;
-    if (resolvedGroupId) {
-      const existing = await db.file.findUnique({
-        where: { organizationId_groupId_sha256: { organizationId: org, groupId: resolvedGroupId, sha256: sha } },
-      });
+    {
+      const existing = resolvedGroupId
+        ? await db.file.findUnique({
+            where: { organizationId_groupId_sha256: { organizationId: org, groupId: resolvedGroupId, sha256: sha } },
+          })
+        : await db.file.findFirst({ where: { organizationId: org, groupId: null, sha256: sha } });
       if (existing && existing.status === "ARCHIVE" && existing.indexStatus === "EN_ATTENTE") {
         // Reprise d'indexation : le fichier est déjà archivé et confirmé ; on relance
         // uniquement classification + indexation, sans ré-archiver ni compter un doublon.
@@ -180,7 +185,7 @@ export async function ingestDocument(params: IngestParams): Promise<IngestResult
         repriseIndex = true;
         await db.file.update({
           where: { id: existing.id },
-          data: { clientId: resolvedClientId, groupId: resolvedGroupId, receptionCount: { increment: 1 } },
+          data: { clientId: resolvedClientId ?? existing.clientId, groupId: resolvedGroupId ?? existing.groupId, receptionCount: { increment: 1 } },
         });
         await db.fileReception.update({ where: { id: reception.id }, data: { fileId: existing.id } });
         await db.extraction.deleteMany({ where: { fileId: existing.id } });
@@ -229,7 +234,7 @@ export async function ingestDocument(params: IngestParams): Promise<IngestResult
         file = existing;
         await db.file.update({
           where: { id: existing.id },
-          data: { clientId: resolvedClientId, groupId: resolvedGroupId, receptionCount: { increment: 1 } },
+          data: { clientId: resolvedClientId ?? existing.clientId, groupId: resolvedGroupId ?? existing.groupId, receptionCount: { increment: 1 } },
         });
         await db.fileReception.update({ where: { id: reception.id }, data: { fileId: existing.id } });
         await db.extraction.deleteMany({ where: { fileId: existing.id } });

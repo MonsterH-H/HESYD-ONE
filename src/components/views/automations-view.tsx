@@ -7,6 +7,7 @@
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import { useApi, apiGet } from "@/hooks/use-api";
+import { useAppStore } from "@/store/app";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,8 +72,11 @@ function runPill(status: string, label: string) {
     case "PARTIEL":
     case "BLOQUE":
     case "EN_COURS":
+    case "EN_ATTENTE":
+    case "RETRY_PROGRAMME":
       return <Pill tone="carton" shape="ring" label={label} />;
     case "ECHEC":
+    case "ECHEC_DEFINITIF":
       return <Pill tone="erreur" shape="cross" label={label} />;
     default:
       return <Pill tone="encre" shape="dot" label={label} />;
@@ -87,6 +91,11 @@ function validCron(expr: string) {
 export function AutomationsView() {
   const { t } = useI18n();
   const { call } = useApi();
+  const role = useAppStore((s) => s.session?.role);
+  // POST et PATCH /api/automations sont réservés ADMIN+ côté serveur —
+  // l'UI n'affiche plus les actions vouées au 403 (audit UI P2).
+  const peutGerer = role === "PROPRIETAIRE" || role === "ADMINISTRATEUR";
+  const peutExecuter = role !== "LECTEUR";
 
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -184,10 +193,12 @@ export function AutomationsView() {
       <div className="flex items-center justify-between">
         <SectionTitle>{t("automations.title")}</SectionTitle>
         {/* Bouton primaire unique de l'écran */}
-        <Button className="h-11 px-4" onClick={() => { resetForm(); setSheetOpen(true); }}>
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          {t("automations.add")}
-        </Button>
+        {peutGerer && (
+          <Button className="h-11 px-4" onClick={() => { resetForm(); setSheetOpen(true); }}>
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            {t("automations.add")}
+          </Button>
+        )}
       </div>
 
       <div className="registre border rounded-md bg-card" role="list" aria-label={t("automations.title")}>
@@ -207,31 +218,33 @@ export function AutomationsView() {
                   <span className="text-[12px] text-muted-foreground truncate hidden md:inline max-w-[220px]">{t(`automations.template.${a.template}`)}</span>
                   <span className="text-[12px] tnum text-muted-foreground shrink-0 hidden sm:inline">{a.cronExpr}</span>
                   {a.status === "ACTIVE" ? <Pill tone="ruban" shape="dot" label={t("automations.status.ACTIVE")} /> : <Pill tone="carton" shape="ring" label={t("automations.status.PAUSE")} />}
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void toggleStatus(a);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
+                  {peutGerer && (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => {
                         e.stopPropagation();
                         void toggleStatus(a);
-                      }
-                    }}
-                    aria-label={a.status === "ACTIVE" ? t("automations.pause") : t("automations.resume")}
-                    className="inline-flex items-center justify-center gap-1.5 h-9 px-2.5 rounded-md border text-[12px] shrink-0 hover:bg-secondary transition-colors min-w-[44px]"
-                  >
-                    {pendingId === a.id ? (
-                      <PauseCircle className="h-3.5 w-3.5 animate-pulse" aria-hidden="true" />
-                    ) : a.status === "ACTIVE" ? (
-                      <PauseCircle className="h-3.5 w-3.5" aria-hidden="true" />
-                    ) : (
-                      <PlayCircle className="h-3.5 w-3.5" aria-hidden="true" />
-                    )}
-                    <span className="hidden lg:inline">{a.status === "ACTIVE" ? t("automations.pause") : t("automations.resume")}</span>
-                  </span>
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.stopPropagation();
+                          void toggleStatus(a);
+                        }
+                      }}
+                      aria-label={a.status === "ACTIVE" ? t("automations.pause") : t("automations.resume")}
+                      className="inline-flex items-center justify-center gap-1.5 h-9 px-2.5 rounded-md border text-[12px] shrink-0 hover:bg-secondary transition-colors min-w-[44px]"
+                    >
+                      {pendingId === a.id ? (
+                        <PauseCircle className="h-3.5 w-3.5 animate-pulse" aria-hidden="true" />
+                      ) : a.status === "ACTIVE" ? (
+                        <PauseCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                      ) : (
+                        <PlayCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                      )}
+                      <span className="hidden lg:inline">{a.status === "ACTIVE" ? t("automations.pause") : t("automations.resume")}</span>
+                    </span>
+                  )}
                   <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />
                 </button>
                 {/* Expansion en ligne — exécutions réelles */}
@@ -245,7 +258,7 @@ export function AutomationsView() {
                           variant="outline"
                           size="sm"
                           className="h-8 shrink-0"
-                          disabled={runningId === a.id || a.status !== "ACTIVE"}
+                          disabled={!peutExecuter || runningId === a.id || a.status !== "ACTIVE"}
                           onClick={() => void runNow(a)}
                         >
                           {runningId === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Zap className="h-3.5 w-3.5" aria-hidden="true" />}

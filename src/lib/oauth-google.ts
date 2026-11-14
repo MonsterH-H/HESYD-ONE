@@ -14,11 +14,23 @@ export function googleConfigured(): boolean {
   return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 }
 
-/** URL canonique de l'app : APP_URL si définie, sinon en-têtes de la requête (proxy inclus). */
+/**
+ * URL canonique de l'app : APP_URL si définie, sinon (développement uniquement)
+ * dérivée des en-têtes de la requête avec validation stricte du host.
+ * En production sans APP_URL/PUBLIC_BASE_URL, on refuse de bâtir des liens
+ * sensibles (réinitialisation, invitation) sur un Host falsifiable (audit P3) :
+ * le repli lève plutôt que d'émettre un lien empoisonnable.
+ */
 export function appOriginFromRequest(req: Request): string {
   if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
+  if (process.env.PUBLIC_BASE_URL) return process.env.PUBLIC_BASE_URL.replace(/\/$/, "");
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("app_url_requise_en_production");
+  }
   const proto = req.headers.get("x-forwarded-proto") ?? new URL(req.url).protocol.replace(":", "");
   const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? new URL(req.url).host;
+  // Le host ne peut contenir que hostname[:port] — jamais d'espaces ni de séparateurs d'en-tête.
+  if (!/^[a-z0-9.\-]+(?::\d{1,5})?$/i.test(host)) throw new Error("host_invalide");
   return `${proto}://${host}`;
 }
 

@@ -88,7 +88,6 @@ type OperationFinanciere = {
   status: string;
   confidence: number;
   needsReview: boolean;
-  justificationFileId: string | null;
   validatedById: string | null;
   validatedAt: string | null;
   rejectedById: string | null;

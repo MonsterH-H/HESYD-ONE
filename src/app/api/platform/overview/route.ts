@@ -104,9 +104,13 @@ export async function GET() {
         whatsappConfigure: Boolean(process.env.WHATSAPP_TOKEN),
         driveConfigure: Boolean(process.env.GOOGLE_CLIENT_ID),
         n8nConfigure: Boolean(process.env.N8N_BASE_URL),
-        smtpConfigure: Boolean(process.env.SMTP_URL),
+        // État E-MAILS réel : Resend est l'unique canal transactionnel (décision
+        // imposée) — l'affichage d'un état SMTP sans connecteur a été retiré (audit P3).
+        resendConfigure: Boolean(process.env.RESEND_API_KEY),
+        docAiConfigure: Boolean(process.env.GOOGLE_DOC_AI_PROJECT && process.env.GOOGLE_DOC_AI_PROCESSOR_ID),
+        azureConfigure: Boolean(process.env.AZURE_AI_FOUNDRY_ENDPOINT),
         noteHonnête:
-          "Les états « non configuré » sont des blocages externes réels (E1-E5) : aucune fonctionnalité n'est simulée à leur place.",
+          "Les états « non configuré » sont des blocages externes réels (E1-E8) : aucune fonctionnalité n'est simulée à leur place.",
       },
     };
   });

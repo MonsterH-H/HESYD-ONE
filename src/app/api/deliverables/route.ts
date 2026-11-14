@@ -4,6 +4,7 @@ import { handle, readJson } from "@/lib/api";
 import { safeJsonParse } from "@/lib/helpers";
 import { createDeliverable } from "@/lib/deliverables/generate";
 import { signLink } from "@/lib/signed-links";
+import { logAudit } from "@/lib/audit";
 import { z } from "zod";
 
 export async function GET() {
@@ -77,6 +78,15 @@ export async function POST(req: Request) {
         sections: d.sections,
         sources,
       },
+    });
+    // Journal d'audit (audit §2 — génération de livrable + consommation de crédits)
+    await logAudit({
+      organizationId: auth.organization.id,
+      userId: auth.user.id,
+      action: "LIVRABLE_GENERE",
+      entityType: "Deliverable",
+      entityId: result.id,
+      after: { type: d.type, title: d.title, version: result.version, sizeBytes: result.sizeBytes, sources: sources.length },
     });
     return result;
   });

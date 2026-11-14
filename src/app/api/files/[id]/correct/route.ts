@@ -28,8 +28,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const group = await db.waGroup.findFirst({ where: { id: body.data.groupId, organizationId: auth.organization.id, status: "ACTIF", clientId: client.id } });
     if (!group) throw new Error("rattachement_incoherent");
 
-    // relecture de la matière première brute conservée
-    const rawRel = `storage/received/${auth.organization.slug}/${file.originalFilename}`;
+    // relecture de la matière première brute conservée : chemin RÉEL de la
+    // réception (rawPath, audit pipeline b) — le nom reconstruit peut différer
+    // après assainissement/anti-collision ou pour un média WhatsApp.
+    const reception = await db.fileReception.findFirst({
+      where: { fileId: id, organizationId: auth.organization.id, rawPath: { not: null } },
+      orderBy: { receivedAt: "desc" },
+      select: { rawPath: true },
+    });
+    const rawRel = reception?.rawPath ?? `storage/received/${auth.organization.slug}/${file.originalFilename}`;
     let data: Buffer;
     try {
       data = await readArchivedFile(rawRel);

@@ -4,6 +4,7 @@ import { requireAuth, verifyPassword } from "@/lib/auth";
 import { handle, readJson } from "@/lib/api";
 import { generateTotpSecret, otpauthUri } from "@/lib/totp";
 import { encryptSecret, resolveSecret, verifyTotpStep } from "@/lib/crypto-vault";
+import { logAudit } from "@/lib/audit";
 
 const schema = z.object({
   action: z.enum(["setup", "enable", "disable"]),
@@ -57,6 +58,8 @@ export async function POST(req: Request) {
         where: { id: user.id },
         data: { mfaEnabled: true, mfaSecret: encryptSecret(secret), mfaLastUsedStep: step },
       });
+      // Journal d'audit (audit §2 — renforcement de sécurité tracé) :
+      await logAudit({ userId: user.id, action: "MFA_ACTIVEE", entityType: "User", entityId: user.id });
       return { ok: true, mfaEnabled: true };
     }
 
@@ -73,6 +76,8 @@ export async function POST(req: Request) {
     // Désactivation : secret et garde anti-rejeu effacés — le re-chiffrement
     // de l'ancien format est ici sans objet (la valeur est supprimée).
     await db.user.update({ where: { id: user.id }, data: { mfaEnabled: false, mfaSecret: null, mfaLastUsedStep: null } });
+    // Journal d'audit (audit §2 — affaiblissement de sécurité TOUJOURS tracé) :
+    await logAudit({ userId: user.id, action: "MFA_DESACTIVEE", entityType: "User", entityId: user.id });
     return { ok: true, mfaEnabled: false };
   });
 }

@@ -5,7 +5,10 @@ import { logAudit } from "@/lib/audit";
 import { NextResponse } from "next/server";
 
 function csvEscape(v: unknown): string {
-  const s = v == null ? "" : String(v);
+  let s = v == null ? "" : String(v);
+  // Neutralisation de l'injection de formules Excel (audit P3) : un champ
+  // commençant par = + - @ ou une tabulation est préfixé d'une apostrophe.
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

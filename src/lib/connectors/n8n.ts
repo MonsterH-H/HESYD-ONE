@@ -60,26 +60,54 @@ export async function triggerWorkflow(workflowId: string, payload: Record<string
 
 /**
  * Définition du workflow n8n « Reprise des tâches » exportable vers une
- * instance n8n réelle. La logique critique (validation, preuve) reste côté
- * Next.js : n8n ne fait que déclencher et relayer.
+ * instance n8n réelle — ALIGNED avec le contrat signé réel (audit P3) :
+ * corps signé (Code), HMAC SHA256 via $env.N8N_SHARED_SECRET (Crypto), puis
+ * appel de /api/scheduler/tick avec les quatre en-têtes X-HESYD-*. L'ancienne
+ * définition n'envoyait pas de signature et aurait été rejetée 403 à
+ * l'import. La logique critique (validation, preuve) reste côté Next.js :
+ * n8n ne fait que déclencher et relayer.
  */
 export const N8N_REPRISE_WORKFLOW = {
-  name: "HESYD ONE — Reprise des tâches",
+  name: "HESYD ONE — Reprise des tâches (tick signé)",
   nodes: [
     {
-      name: "Cron",
+      name: "Déclenchement planifié",
       type: "n8n-nodes-base.scheduleTrigger",
-      parameters: { rule: { interval: [{ field: "minutes", minutesInterval: 5 }] } },
+      parameters: { rule: { interval: [{ field: "cronExpression", expression: "*/5 * * * *" }] } },
+    },
+    {
+      name: "Corps signé",
+      type: "n8n-nodes-base.code",
+      parameters: {
+        mode: "runOnceForAllItems",
+        jsCode:
+          "// Corps EXACT envoyé à HESYD — la signature HMAC porte sur la chaîne\n// « <timestamp>.<corps> » (contrat : src/lib/connectors/n8n.ts, CDC §13.4).\nconst timestamp = Date.now().toString();\nconst correlationId = 'n8n-reprise-' + timestamp + '-' + Math.random().toString(36).slice(2, 10);\nconst payload = { declencheur: 'n8n', workflow: 'hesyd-reprise' };\nconst body = JSON.stringify({ payloadVersion: 'v1', correlationId: correlationId, payload: payload });\nreturn [{ json: { timestamp: timestamp, correlationId: correlationId, body: body, stringToSign: timestamp + '.' + body } }];",
+      },
+    },
+    {
+      name: "Signature HMAC",
+      type: "n8n-nodes-base.crypto",
+      parameters: { action: "hmac", type: "SHA256", secret: "={{ $env.N8N_SHARED_SECRET }}", value: "={{ $json.stringToSign }}", encoding: "hex" },
     },
     {
       name: "Appel reprise (signé)",
       type: "n8n-nodes-base.httpRequest",
       parameters: {
         method: "POST",
-        url: "={{$env.HESYD_BASE_URL}}/api/scheduler/tick",
+        url: "={{ $env.HESYD_BASE_URL }}/api/scheduler/tick",
         sendHeaders: true,
-        headerParameters: { parameters: [{ name: "X-HESYD-Timestamp", value: "={{$now.toMillis()}}" }] },
-        options: {},
+        headerParameters: {
+          parameters: [
+            { name: "X-HESYD-Timestamp", value: "={{ $('Corps signé').first().json.timestamp }}" },
+            { name: "X-HESYD-Signature", value: "={{ $json.data }}" },
+            { name: "X-HESYD-Correlation", value: "={{ $('Corps signé').first().json.correlationId }}" },
+            { name: "X-HESYD-Payload-Version", value: "v1" },
+          ],
+        },
+        sendBody: true,
+        contentType: "raw",
+        rawContentType: "application/json",
+        body: "={{ $('Corps signé').first().json.body }}",
       },
     },
   ],

@@ -18,13 +18,16 @@ export async function POST(req: Request) {
     const form = await req.formData();
     const file = form.get("file");
     if (!(file instanceof File)) throw new Error("fichier_absent");
+    // Borne réelle de taille et de volumétrie (audit P3 — ExcelJS charge tout
+    // en mémoire : un fichier importé ne doit pas pouvoir saturer le serveur).
+    if (file.size > 10 * 1024 * 1024) throw new Error("fichier_trop_volumineux");
     const dryRun = String(form.get("dryRun") ?? "") === "true";
 
     let rows: Record<string, string>[] = [];
     if (file.name.toLowerCase().endsWith(".csv") || file.type === "text/csv") {
       const text = await file.text();
       const parsed = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true });
-      rows = parsed.data;
+      rows = parsed.data.slice(0, 5000); // plafond de lignes par import
     } else if (file.name.toLowerCase().endsWith(".xlsx")) {
       const ExcelJS = (await import("exceljs")).default;
       const wb = new ExcelJS.Workbook();
@@ -155,6 +158,15 @@ export async function POST(req: Request) {
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const template = url.searchParams.get("template");
+  if (template === "csv" || template === "xlsx") {
+    // Modèle téléchargeable : authentifié comme le reste de la route
+    // (audit P3 — cohérence des gardes ; contenu statique mais cohérence).
+    try {
+      await requireAuth();
+    } catch {
+      return NextResponse.json({ error: "auth_required" }, { status: 401 });
+    }
+  }
   if (template === "csv") {
     const csv = "\uFEFFcode;nom;contact;code_groupe;nom_groupe;source\nDEMOCLI;Client démo;contact@demo.fr;DEMOGROUPE;Dépôt démo;DEPOT_WEB\n";
     return new NextResponse(csv, {

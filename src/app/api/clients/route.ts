@@ -28,6 +28,15 @@ export async function POST(req: Request) {
     if (!["PROPRIETAIRE", "ADMINISTRATEUR"].includes(auth.role)) throw new Error("forbidden");
     const body = createSchema.safeParse(await readJson<unknown>(req));
     if (!body.success) throw new Error("donnees_incompletes");
+
+    // Limite réelle de l'offre (Plan.maxClients — appliquée, audit données)
+    const sub = await db.subscription.findUnique({ where: { organizationId: auth.organization.id } });
+    const plan = await db.plan.findUnique({ where: { code: sub?.planCode ?? "TRIAL" } });
+    if (plan) {
+      const activeClients = await db.client.count({ where: { organizationId: auth.organization.id, status: { not: "ARCHIVE" } } });
+      if (activeClients >= plan.maxClients) throw new Error("limite_clients_atteinte");
+    }
+
     const code = body.data.code.toUpperCase().trim().replace(/\s+/g, "_");
     const client = await db.client.create({
       data: {

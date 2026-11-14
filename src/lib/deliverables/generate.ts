@@ -269,8 +269,12 @@ export async function createDeliverable(params: {
 }
 
 export async function readDeliverable(relPath: string): Promise<Buffer> {
+  const root = path.join(process.cwd(), "storage", "deliverables");
   const full = path.resolve(path.join(process.cwd(), relPath));
-  if (!full.startsWith(path.join(process.cwd(), "storage", "deliverables"))) throw new Error("chemin_livrable_invalide");
+  // Garde stricte par path.relative (audit P3 — un startsWith laissait passer
+  // les répertoires frères de préfixe, ex. /deliverables-autreorg).
+  const rel = path.relative(root, full);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) throw new Error("chemin_livrable_invalide");
   return fs.readFile(full);
 }
 

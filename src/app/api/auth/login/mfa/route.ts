@@ -5,6 +5,7 @@ import { handle, readJson } from "@/lib/api";
 import { consumeAuthToken } from "@/lib/auth-tokens";
 import { encryptSecret, resolveSecret, verifyTotpStep, VAULT_PREFIX } from "@/lib/crypto-vault";
 import { lockRemaining, registerFailure, clearFailures, clientIp } from "@/lib/rate-limit";
+import { logAudit } from "@/lib/audit";
 
 const schema = z.object({ email: z.string().email(), mfaToken: z.string().min(1), code: z.string().min(6).max(6) });
 
@@ -53,6 +54,8 @@ export async function POST(req: Request) {
     clearFailures(email, ip);
     await db.user.update({ where: { id: user.id }, data });
     await createSession(user.id);
+    // Journal d'audit (audit §2 — succès de connexion MFA tracé)
+    await logAudit({ userId: user.id, action: "CONNEXION", entityType: "User", entityId: user.id, after: { ip, mfa: true } });
     return { ok: true, user: { id: user.id, name: user.name, email: user.email } };
   });
 }
