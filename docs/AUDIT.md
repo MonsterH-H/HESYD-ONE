@@ -236,6 +236,7 @@ Le constat de départ (« interfaces sans fond ») est **infondé sur la majorit
 | E5 | n8n | Instance n8n joignable (`N8N_BASE_URL`, `N8N_SHARED_SECRET`) pour brancher le contrat signé existant |
 | E6 | PostgreSQL + pgvector | Base PostgreSQL au déploiement VPS (sandbox = SQLite uniquement) — décision D1 à valider |
 | E7 | Build de production | La sandbox interdit `next build` (serveur de dev actif) ; typecheck+lint+runtime exécutés à la place. Build complet à exécuter sur le VPS |
+| E8 | Push GitHub de la session §16 | Le PAT fourni dans la conversation initiale (`github_pat_11BSKJFNA0…`) a été **tronqué** par le résumé de session et n'est présent nulle part dans la sandbox (vérifié : env, ~/.git-credentials, ~/.netrc, snapshots, .zscripts). Le commit `18a6ac8` est prêt localement (34 fichiers, +848/−366). Il faut le **PAT complet** (ou un push manuel) — jamais écrit dans un fichier commité |
 
 ## 8. Plan de remise à niveau proposé (un module à la fois, fond d'abord)
 
