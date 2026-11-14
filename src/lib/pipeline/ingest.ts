@@ -63,6 +63,8 @@ export type IngestParams = {
   /** Identifiant WhatsApp EXTERNE du groupe/expéditeur présent dans le payload fournisseur
    *  (jamais l'id interne du registre) — tracé sur la réception. */
   externalGroupId?: string | null;
+  /** Réception EXISTANTE à réutiliser (reprise) — aucune nouvelle ligne créée. */
+  reuseReceptionId?: string;
 };
 
 export async function logStep(params: {
@@ -106,24 +108,35 @@ export async function ingestDocument(params: IngestParams): Promise<IngestResult
   let receptionId: string | undefined;
 
   try {
-    // 1. Réception persistée avant tout traitement lourd (CDC §11.6)
-    const reception = await db.fileReception.create({
-      data: {
-        organizationId: org,
-        clientId: params.clientId ?? null,
-        groupId: params.groupId ?? null,
-        externalGroupId: params.externalGroupId ?? null,
-        webhookEventId: params.webhookEventId ?? null,
-        whatsappMessageId: params.whatsappMessageId ?? null,
-        mediaId: params.mediaId ?? null,
-        senderId: params.senderId ?? null,
-        messageTimestamp: params.messageTimestamp ?? null,
-        caption: params.caption?.slice(0, 2000),
-        source: params.source,
-        status: "EN_TRAITEMENT",
-        createdBy: params.createdById ?? null,
-      },
-    });
+    // 1. Réception persistée avant tout traitement lourd (CDC §11.6).
+    // En reprise, la réception EXISTANTE est réutilisée — jamais dupliquée.
+    const reception = params.reuseReceptionId
+      ? await db.fileReception.update({
+          where: { id: params.reuseReceptionId, organizationId: org },
+          data: {
+            clientId: params.clientId ?? null,
+            groupId: params.groupId ?? null,
+            caption: params.caption?.slice(0, 2000),
+            status: "EN_TRAITEMENT",
+          },
+        })
+      : await db.fileReception.create({
+          data: {
+            organizationId: org,
+            clientId: params.clientId ?? null,
+            groupId: params.groupId ?? null,
+            externalGroupId: params.externalGroupId ?? null,
+            webhookEventId: params.webhookEventId ?? null,
+            whatsappMessageId: params.whatsappMessageId ?? null,
+            mediaId: params.mediaId ?? null,
+            senderId: params.senderId ?? null,
+            messageTimestamp: params.messageTimestamp ?? null,
+            caption: params.caption?.slice(0, 2000),
+            source: params.source,
+            status: "EN_TRAITEMENT",
+            createdBy: params.createdById ?? null,
+          },
+        });
     receptionId = reception.id;
 
     // 2. Contrôles techniques réels
@@ -622,7 +635,17 @@ export async function retryReception(receptionId: string, organizationId: string
   };
   const mime = MIME_BY_EXT[ext];
   if (!mime) throw new Error(`extension_non_reprise:${ext || "inconnue"}`);
-  await db.fileReception.update({ where: { id: receptionId }, data: { status: "EN_TRAITEMENT" } });
+
+  // Destination par défaut (même décision que le dépôt web) : une réception sans
+  // rattachement est dirigée vers le groupe « Dépots directs » de l'organisation
+  // — sans cela, la déduplication (clé org+groupe+sha256) serait inopérante et
+  // chaque reprise créerait un fichier orphelin À VÉRIFIER.
+  let repriseGroupId = reception.groupId;
+  if (!repriseGroupId && !reception.clientId) {
+    const depot = await db.waGroup.findFirst({ where: { organizationId, code: "DEPOTS_DIRECTS" } });
+    if (depot) repriseGroupId = depot.id;
+  }
+
   return ingestDocument({
     organizationId,
     orgSlug: org.slug,
@@ -631,7 +654,8 @@ export async function retryReception(receptionId: string, organizationId: string
     data,
     source: "IMPORT_MANUEL",
     clientId: reception.clientId,
-    groupId: reception.groupId,
+    groupId: repriseGroupId,
     createdById: reception.createdBy ?? undefined,
+    reuseReceptionId: reception.id,
   });
 }

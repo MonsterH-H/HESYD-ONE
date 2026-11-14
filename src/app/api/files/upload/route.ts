@@ -20,11 +20,25 @@ export async function POST(req: Request) {
     const groupId = (form.get("groupId") as string) || null;
     const caption = (form.get("caption") as string) || undefined;
 
-    if (groupId) {
-      const group = await db.waGroup.findFirst({ where: { id: groupId, organizationId: auth.organization.id } });
+    // Destination par défaut (décision provisioning : « le premier dépôt sans
+    // configuration a toujours une destination ») : un dépôt web sans client
+    // ni groupe explicites est rattaché au groupe « Dépots directs » créé à
+    // l'inscription (client « Général »). Le rattachement reste explicite et
+    // auditable ; sans ce groupe, le fichier passe honnêtement À VÉRIFIER.
+    let resolvedGroupId = groupId;
+    let resolvedClientId = clientId;
+    if (!resolvedGroupId && !resolvedClientId) {
+      const depot = await db.waGroup.findFirst({
+        where: { organizationId: auth.organization.id, code: "DEPOTS_DIRECTS" },
+      });
+      if (depot) resolvedGroupId = depot.id;
+    }
+
+    if (resolvedGroupId) {
+      const group = await db.waGroup.findFirst({ where: { id: resolvedGroupId, organizationId: auth.organization.id } });
       if (!group) throw new Error("groupe_inconnu");
-    } else if (clientId) {
-      const client = await db.client.findFirst({ where: { id: clientId, organizationId: auth.organization.id } });
+    } else if (resolvedClientId) {
+      const client = await db.client.findFirst({ where: { id: resolvedClientId, organizationId: auth.organization.id } });
       if (!client) throw new Error("client_inconnu");
     }
 
@@ -36,8 +50,8 @@ export async function POST(req: Request) {
       mime: file.type || "application/octet-stream",
       data,
       source: "DEPOT_WEB",
-      clientId,
-      groupId,
+      clientId: resolvedClientId,
+      groupId: resolvedGroupId,
       caption,
       createdById: auth.user.id,
     });
