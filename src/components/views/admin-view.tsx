@@ -5,7 +5,7 @@
  * intégrations (états réels, OAuth Drive), abonnement (usage, checkout Polar),
  * journaux (audit horodaté réel) et paramètres (organisation, fuseau, langue).
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import { useApi, apiGet } from "@/hooks/use-api";
 import { toast } from "@/hooks/use-toast";
@@ -519,17 +519,42 @@ export function AdminView() {
     return integrations?.env?.[connector] ? "CONNECTE" : "NON_CONFIGURE";
   };
 
+  // Navigation clavier des onglets (WAI-ARIA tabs — résiduel §16.6) : ←/→
+  // circulaire, Début/Fin, tabindex itinérant (l'onglet actif seul est dans la
+  // hiérarchie de tabulation) ; les panneaux restent visibles via aria-labelledby.
+  // Le focus est réappliqué après activation : les panneaux sont rendus via
+  // `<main key={espace-view}>` dans app-shell (sans adminTab — un remontage
+  // complet de la vue perdrait le focus clavier posé ici), et l'animation
+  // d'entrée par onglet est rejouée par la classe vue-entree de chaque panneau.
+  const tabsRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const surToucheOnglet = (e: React.KeyboardEvent, index: number) => {
+    let next: number | null = null;
+    if (e.key === "ArrowRight") next = (index + 1) % TABS.length;
+    else if (e.key === "ArrowLeft") next = (index - 1 + TABS.length) % TABS.length;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = TABS.length - 1;
+    if (next === null) return;
+    e.preventDefault();
+    setAdminTab(TABS[next].id);
+    tabsRefs.current[next]?.focus();
+  };
+
   return (
     <div className="space-y-8 max-w-[1100px]">
       {/* Onglets de la console opérateur */}
       <div role="tablist" aria-label={t("space.operator")} className="flex gap-1 overflow-x-auto scroll-fin border-b border-[var(--bordure)]">
-        {TABS.map((tab) => (
+        {TABS.map((tab, index) => (
           <button
             key={tab.id}
+            ref={(el) => {
+              tabsRefs.current[index] = el;
+            }}
             id={`tab-${tab.id}`}
             role="tab"
+            tabIndex={adminTab === tab.id ? 0 : -1}
             aria-selected={adminTab === tab.id}
             aria-controls={`panel-${tab.id}`}
+            onKeyDown={(e) => surToucheOnglet(e, index)}
             onClick={() => setAdminTab(tab.id)}
             className={`shrink-0 px-3.5 py-2.5 text-meta border-b-2 -mb-px transition-colors ${
               adminTab === tab.id
@@ -544,7 +569,7 @@ export function AdminView() {
 
       {/* ——— Équipe ——— */}
       {adminTab === "team" && (
-        <section id="panel-team" role="tabpanel" aria-labelledby="tab-team" className="space-y-3">
+        <section id="panel-team" role="tabpanel" aria-labelledby="tab-team" className="vue-entree space-y-3">
           <div className="flex items-center justify-between">
             <SectionTitle>{t("admin.team")}</SectionTitle>
             {canInvite && (
@@ -654,7 +679,7 @@ export function AdminView() {
 
       {/* ——— Intégrations ——— */}
       {adminTab === "integrations" && (
-        <section id="panel-integrations" role="tabpanel" aria-labelledby="tab-integrations" className="space-y-3">
+        <section id="panel-integrations" role="tabpanel" aria-labelledby="tab-integrations" className="vue-entree space-y-3">
           <SectionTitle>{t("admin.integrations")}</SectionTitle>
           <div className="registre border rounded-md bg-card" role="list">
             {CONNECTORS.map((connector) => {
@@ -701,7 +726,7 @@ export function AdminView() {
 
       {/* ——— Abonnement et usage ——— */}
       {adminTab === "subscription" && (
-        <section id="panel-subscription" role="tabpanel" aria-labelledby="tab-subscription" className="space-y-3">
+        <section id="panel-subscription" role="tabpanel" aria-labelledby="tab-subscription" className="vue-entree space-y-3">
           <SectionTitle>{t("admin.subscription")}</SectionTitle>
 
           {trial && trialDate && (
@@ -856,7 +881,7 @@ export function AdminView() {
 
       {/* ——— Journaux d'audit — horodatés, lecture seule ——— */}
       {adminTab === "logs" && (
-        <section id="panel-logs" role="tabpanel" aria-labelledby="tab-logs" className="space-y-3">
+        <section id="panel-logs" role="tabpanel" aria-labelledby="tab-logs" className="vue-entree space-y-3">
           <SectionTitle>{t("admin.audit")}</SectionTitle>
           <p className="text-meta text-muted-foreground">{t("admin.audit.note")}</p>
           <div className="registre border rounded-md bg-card" role="table" aria-label={t("admin.audit")}>
@@ -904,7 +929,7 @@ export function AdminView() {
 
       {/* ——— Paramètres de l'organisation ——— */}
       {adminTab === "settings" && (
-        <section id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" className="space-y-3 max-w-[560px]">
+        <section id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" className="vue-entree space-y-3 max-w-[560px]">
           <SectionTitle>{t("admin.settings.org")}</SectionTitle>
           <div className="border rounded-md bg-card p-4 space-y-4">
             <div className="space-y-1.5">
@@ -955,7 +980,7 @@ export function AdminView() {
 
       {/* ——— Sécurité et mémoire ——— */}
       {adminTab === "security" && (
-        <section id="panel-security" role="tabpanel" aria-labelledby="tab-security" className="space-y-8 max-w-[720px]">
+        <section id="panel-security" role="tabpanel" aria-labelledby="tab-security" className="vue-entree space-y-8 max-w-[720px]">
           {/* Politique d'autonomie — lecture seule, fixée par l'exploitant */}
           <div className="space-y-3">
             <SectionTitle>{t("admin.autonomy.title")}</SectionTitle>

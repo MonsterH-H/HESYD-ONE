@@ -627,3 +627,30 @@ Les statuts d'intégration des §14-15 restent inchangés : aucune donnée exter
 - `document.title` par vue (SPA) ;
 - Observation fonctionnelle préexistante : premier appairage d'un numéro WhatsApp neuf non reconnu par `tryPairByCode` (garde `findActivePairingByPhone` précède) — à qualifier séparément si le parcours « premier appairage » est attendu ;
 - 23 vulnérabilités transitives dev-only (cf. §15.7) bornées par upstream.
+
+## 17. Passe 2 — améliorations finales + livraison (session suivante)
+
+### 17.1 P1 qualifié et corrigé : appairage WhatsApp initial impossible
+
+L'observation fonctionnelle de §16.6 est qualifiée **P1** : dans `webhook/whatsapp/route.ts`, la garde `findActivePairingByPhone` renvoyait l'accueil standard et `continue` pour tout numéro sans appairage ACTIF — `tryPairByCode` n'était donc **jamais atteignable pour un numéro neuf** (il ne l'était que pour un numéro déjà appairé, qui n'en a pas besoin). L'appairage initial prévu par le CDC §4.8 était fonctionnellement impossible.
+
+Correctif : primitive unique `tenterAppairageParCode()` (anti force brute persistant inclus, `compterTentativesAppairage()` sur 15 min, limite 10 conservée) appelée **depuis la branche numéro inconnu avant l'accueil standard** ET depuis l'étape de re-appairage d'un numéro déjà appairé (comportement identique à l'ancien chemin) ; message de confirmation extrait en constante `PAIRED_MESSAGE` ; rejet de limite factorisé `rejeterLimiteAppairage()` (journal identique à l'ancien). Un code invalide/expiré d'un numéro inconnu reçoit toujours l'accueil standard — aucun changement de surface, uniquement la branche manquante.
+
+### 17.2 Résiduels §16.6 levés
+
+- **`document.title` par vue (SPA)** : `app-shell.tsx` pose `document.title = titreActif + " — HESYD ONE"` dans un `useEffect` sur le titre actif (espace documents, onglet console opérateur, console plateforme) ; au démontage (déconnexion), retour au titre des métadonnées du layout. Vérifié navigateur : « Vue d'ensemble — HESYD ONE » → « Clients — HESYD ONE » → « Équipe — HESYD ONE » → « Intégrations — HESYD ONE » sans rechargement.
+- **Navigation clavier des tabs admin (WAI-ARIA tabs)** : tabindex itinérant (onglet actif seul dans la hiérarchie), ←/→ circulaire, Début/Fin, focus réappliqué sur le nouvel onglet actif. La cause racine de la perte de focus était le `key` du `<main>` d'`app-shell` incluant `adminTab` — chaque changement d'onglet remontait toute la vue et détruisait le DOM sous le focus. Corrigé : `key` limité à `espace-vue` (plus de remontage au changement d'onglet), l'animation d'entrée par onglet est désormais portée par la classe `vue-entree` de chaque panneau `tabpanel` (rejouée à chaque montage, rendu visuel identique). Vérifié navigateur : `ArrowRight` → focus `tab-integrations` + `aria-selected=true` + titre synchronisé ; `Home` → équipe ; `End` → paramètres ; `ArrowRight` depuis la fin → retour équipe (boucle) ; focus conservé à chaque étape.
+
+### 17.3 Micro-labels et vulnérabilités : arbitrage documenté
+
+Les micro-labels `text-[10.5–12.5px]` restants relèvent du système de densité documenté (commentaires en tête de fichiers) — conservés intentionnellement. Les 23 vulnérabilités transitives dev-only restent bornées par upstream (§15.7).
+
+### 17.4 Vérifications d'exécution de la session
+
+- `npx tsc --noEmit` : **0 erreur** · `bun run lint` : **0 erreur, 0 warning**.
+- Parcours navigateur réel : landing (titre correct) → **inscription réelle** d'une organisation « Org Passe Deux » (500 crédits d'essai, wizard 5 étapes, client « Général » créé) → bascule espace Opérateur → tabs admin (clavier complet, ci-dessus) → panneau Intégrations rendu avec états honnêtes (« Identifiants requis ») → **aucune erreur console** ; OCR : aucun fallback GLM/Azure Vision/Vision quelconque dans le code (recherche exhaustive `fallback` — seuls i18n, parse JSON sûr, AvatarFallback UI et texte légal).
+- dev.log : aucune erreur runtime (requêtes Prisma normales uniquement).
+
+### 17.5 État global inchangé
+
+Statuts d'intégration des §14-16 inchangés — aucune donnée externe nouvelle fournie, aucun statut promu sans preuve réelle. Technologies verrouillées intactes.

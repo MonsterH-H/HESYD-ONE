@@ -174,6 +174,16 @@ export function AppShell() {
         ? t(ADMIN_NAV.find((n) => n.tab === adminTab)?.key ?? "admin.team")
         : t(DOC_NAV.find((n) => n.id === view)?.key ?? "nav.overview");
 
+  // Titre d'onglet du navigateur par vue (SPA — résiduel §16.6) : reflète l'espace
+  // et la vue actifs sans rechargement ; au démontage (déconnexion), retour au
+  // titre des métadonnées du layout pour la landing/l'authentification.
+  useEffect(() => {
+    document.title = `${titreActif} — HESYD ONE`;
+    return () => {
+      document.title = "HESYD ONE — Agent documentaire";
+    };
+  }, [titreActif]);
+
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <div className="flex flex-1">
@@ -428,7 +438,7 @@ export function AppShell() {
           </div>
 
           <main
-            key={`${espaceActif}-${view}-${adminTab}`}
+            key={`${espaceActif}-${view}`}
             className="vue-entree flex-1 px-4 md:px-8 py-6 w-full max-w-[1400px]"
           >
             {espaceActif === "documents" && (

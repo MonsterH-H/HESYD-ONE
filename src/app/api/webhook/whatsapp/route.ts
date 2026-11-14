@@ -19,6 +19,44 @@ const WELCOME_MESSAGE =
   "Pour connecter votre numéro, générez un code d'appairage depuis votre espace HESYD ONE (Administration → WhatsApp) puis envoyez-le ici. " +
   "Aucune donnée n'est échangée avant l'appairage.";
 
+/** Message de confirmation d'appairage réel (résolu par code, CDC §4.8). */
+const PAIRED_MESSAGE =
+  "Numéro appairé avec succès. Vous pouvez dès maintenant m'envoyer vos documents et vos questions — je réponds avec les sources citées.";
+
+/** Anti force brute persistant (serveur, multi-instance) : nombre de messages à
+ *  code de l'expéditeur sur les 15 dernières minutes. Au-delà de 10, les
+ *  tentatives d'appairage sont ignorées (espace 10^6, TTL 15 min). */
+const LIMITE_APPAIRAGE = 10;
+
+async function compterTentativesAppairage(sender: string): Promise<number> {
+  const windowStart = new Date(Date.now() - 15 * 60 * 1000);
+  return db.webhookEvent.count({
+    where: { provider: "WHATSAPP_CLOUD", senderId: sender, eventType: "text", receivedAt: { gt: windowStart } },
+  });
+}
+
+/** Tentative d'appairage par code — applicable aux numéros inconnus (appairage
+ *  initial) comme aux numéros déjà appairés (re-appairage vers un nouveau code).
+ *  Retourne le statut et, en cas de limite atteinte, le compteur pour le journal. */
+type ResultatAppairage = { statut: "PAIRE" | "REFUSEE" | "LIMITEE"; recentAttempts?: number };
+async function tenterAppairageParCode(sender: string, text: string): Promise<ResultatAppairage> {
+  if (/\b\d{6}\b/.test(text)) {
+    const recentAttempts = await compterTentativesAppairage(sender);
+    if (recentAttempts > LIMITE_APPAIRAGE) return { statut: "LIMITEE", recentAttempts };
+    const attempt = await tryPairByCode(text, sender);
+    if (attempt.paired) {
+      await sendWhatsAppText(sender, PAIRED_MESSAGE);
+      return { statut: "PAIRE" };
+    }
+  }
+  return { statut: "REFUSEE" };
+}
+
+async function rejeterLimiteAppairage(eventKey: string, sender: string, recentAttempts: number) {
+  await db.webhookEvent.update({ where: { providerEventKey: eventKey }, data: { processingStatus: "REJETEE" } });
+  console.error(`[webhook whatsapp] tentatives d'appairage limitées pour ${sender.slice(-4).padStart(sender.length, "•")} (${recentAttempts}/15 min)`);
+}
+
 /** Vérification GET du webhook Meta (hub.challenge) — réelle. */
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -110,8 +148,20 @@ export async function POST(req: Request) {
     try {
       const pairing = await findActivePairingByPhone(msg.from);
       if (!pairing) {
-        // Numéro inconnu : réponse standard, AUCUNE donnée, aucun agent
-        await sendWhatsAppText(msg.from, WELCOME_MESSAGE);
+        // Numéro inconnu : la tentative d'appairage par code reste possible
+        // (CDC §4.8 — résiduel §16.6 qualifié P1 et corrigé : la garde
+        // findActivePairingByPhone précédait autrefois tryPairByCode, un numéro
+        // neuf ne recevait que l'accueil standard et l'appairage initial était
+        // impossible) ; sinon réponse standard, AUCUNE donnée, aucun agent.
+        let resultat: ResultatAppairage = { statut: "REFUSEE" };
+        if (msg.type === "text" && msg.text) resultat = await tenterAppairageParCode(msg.from, msg.text);
+        if (resultat.statut === "LIMITEE") {
+          await rejeterLimiteAppairage(eventKey, msg.from, resultat.recentAttempts ?? 0);
+          continue;
+        }
+        if (resultat.statut !== "PAIRE") {
+          await sendWhatsAppText(msg.from, WELCOME_MESSAGE);
+        }
         await db.webhookEvent.update({ where: { providerEventKey: eventKey }, data: { processingStatus: "TRAITEE" } });
         continue;
       }
@@ -128,26 +178,17 @@ export async function POST(req: Request) {
         data: { lastCheckedAt: new Date() },
       });
 
-      // ————— Étape 1 : appairage ou accueil standard (CDC §4.8) —————
+      // ————— Étape 1 : re-appairage d'un numéro déjà appairé (nouveau code) —————
+      // Même primitive que l'appairage initial (anti force brute inclus) ; un
+      // texte sans code à 6 chiffres est sans effet ici et passe à l'agent.
       if (msg.type === "text" && msg.text) {
-        // Anti force brute persistant (serveur, multi-instance) : au-delà de
-        // 10 messages à code sur 15 minutes pour un même expéditeur, les
-        // tentatives d'appairage sont ignorées (espace 10^6, TTL 15 min).
-        if (/\b\d{6}\b/.test(msg.text)) {
-          const windowStart = new Date(Date.now() - 15 * 60 * 1000);
-          const recentAttempts = await db.webhookEvent.count({
-            where: { provider: "WHATSAPP_CLOUD", senderId: msg.from, eventType: "text", receivedAt: { gt: windowStart } },
-          });
-          if (recentAttempts > 10) {
-            await db.webhookEvent.update({ where: { providerEventKey: eventKey }, data: { processingStatus: "REJETEE" } });
-            console.error(`[webhook whatsapp] tentatives d'appairage limitées pour ${msg.from.slice(-4).padStart(msg.from.length, "•")} (${recentAttempts}/15 min)`);
-            continue;
-          }
-        }
-        const pairingAttempt = await tryPairByCode(msg.text, msg.from);
-        if (pairingAttempt.paired) {
-          await sendWhatsAppText(msg.from, "Numéro appairé avec succès. Vous pouvez dès maintenant m'envoyer vos documents et vos questions — je réponds avec les sources citées.");
+        const resultat = await tenterAppairageParCode(msg.from, msg.text);
+        if (resultat.statut === "PAIRE") {
           await db.webhookEvent.update({ where: { providerEventKey: eventKey }, data: { processingStatus: "TRAITEE" } });
+          continue;
+        }
+        if (resultat.statut === "LIMITEE") {
+          await rejeterLimiteAppairage(eventKey, msg.from, resultat.recentAttempts ?? 0);
           continue;
         }
       }
