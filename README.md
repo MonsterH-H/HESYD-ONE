@@ -56,10 +56,13 @@ bun install
 # 2. Schéma de base de données (SQLite réel)
 bun run db:push
 
-# 3. Lancer le serveur de développement
+# 3. Catalogue d'offres (TRIAL / STANDARD / ENTREPRISE)
+bun run scripts/seed-plans.ts
+
+# 4. Lancer le serveur de développement
 bun run dev        # http://localhost:3000
 
-# 4. Qualité
+# 5. Qualité
 bun run lint
 bunx tsc --noEmit
 ```
@@ -70,27 +73,46 @@ Copier `.env.example` vers `.env` puis compléter. Chaque intégration déclare 
 
 | Variable | Rôle |
 |---|---|
-| `DATABASE_URL` | SQLite (`file:./db/custom.db`) |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | OAuth Google (connexion + Drive) |
+| `DATABASE_URL` | SQLite en dev (`file:./db/custom.db`) ; **Neon PostgreSQL en production** |
+| `APP_URL` / `PUBLIC_BASE_URL` | URL canonique (OAuth, webhooks, liens e-mail) — requise en production |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | OAuth Google (connexion PKCE + Drive, deux flux distincts) |
 | `GOOGLE_REDIRECT_URI` | Callback OAuth Drive |
-| `DRIVE_ENCRYPTION_KEY` | Chiffrement des jetons Drive par organisation |
+| `DRIVE_ENCRYPTION_KEY` | Chiffrement AES-256-GCM des jetons Drive par organisation |
+| `GOOGLE_DOC_AI_PROJECT` / `GOOGLE_DOC_AI_LOCATION` / `GOOGLE_DOC_AI_PROCESSOR_ID` + `GOOGLE_SERVICE_ACCOUNT_JSON` (ou `DOC_AI_ACCESS_TOKEN`) | **Google Document AI — unique moteur OCR** (indisponible = erreur honnête + reprise, jamais un moteur alternatif) |
 | `WHATSAPP_TOKEN` / `WHATSAPP_APP_SECRET` / `WHATSAPP_VERIFY_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` | Meta WhatsApp Cloud API |
-| `POLAR_ACCESS_TOKEN` / `POLAR_WEBHOOK_SECRET` (+ `POLAR_PRODUCT_ID_STANDARD`, `POLAR_PRODUCT_ID_ENTREPRISE`) | Facturation Polar (page hébergée, jamais de carte) |
-| `N8N_BASE_URL` / `N8N_SHARED_SECRET` | Orchestration et reprise |
-| `APP_URL` / `PUBLIC_BASE_URL` | URL canonique (OAuth, webhooks) |
+| `POLAR_ACCESS_TOKEN` / `POLAR_WEBHOOK_SECRET` (+ `POLAR_PRODUCT_ID_STANDARD`, `POLAR_PRODUCT_ID_ENTREPRISE`) | Facturation et abonnements Polar (page hébergée, jamais de carte) |
+| `RESEND_API_KEY` / `RESEND_FROM` | E-mails transactionnels (vérification, invitations, réinitialisation, rappels) |
+| `AZURE_AI_FOUNDRY_ENDPOINT` / `AZURE_AI_FOUNDRY_API_KEY` / `AZURE_AI_FOUNDRY_DEPLOYMENT` / `AZURE_AI_FOUNDRY_API_VERSION` | IA générale de production (classification, agent, extraction — texte uniquement) |
+| `N8N_BASE_URL` / `N8N_SHARED_SECRET` | Orchestration et reprise (contrat HMAC signé) |
+| `PLATFORM_ADMIN_EMAILS` | Exploitants de la console plateforme |
+| `HESYD_AGENT_DEBUG` | Journal de debug de l'agent (optionnel) |
+
+## Documentation
+
+| Document | Contenu |
+|---|---|
+| `docs/AUDIT.md` | Audit réel complet : exigences → statuts prouvés, blocages externes E1–E8, missions de finalisation |
+| `docs/TECHNICAL_DOCUMENTATION_REVIEW.md` | Registre de lecture des documentations officielles (URLs, sections, contrats, limites) par intégration |
+| `docs/DEPLOIEMENT.md` | Déploiement VPS (Docker, Nginx, migrations Neon, sauvegarde/restauration) |
+| `docs/SPECIFICATIONS.md` · `docs/MODULES.md` | Cahier des charges détaillé et définition de « terminé » par module |
+| `AGENTS.md` · `DECISIONS.md` · `A_CONFIRMER.md` | Conventions du dépôt, décisions d'architecture verrouillées, points à confirmer |
+| `n8n/workflows/*.json` | Workflows d'orchestration exportés, versionnés, alignés sur le contrat signé |
 
 ## Architecture
 
 ```
 src/
-  app/api/…          # API réelle : auth (session, OAuth, invitations), organisation,
-                     # profil, équipe (rôles, désactivation, retrait), audit,
-                     # fichiers, agent, livrables, automatisations, approbations, webhooks
-  components/        # Landing + application (registre éditorial, cachet signé, marque vectorielle)
+  app/api/…          # API réelle : auth (session, OAuth, invitations, MFA), organisation,
+                     # profil, équipe (rôles, désactivation, retrait), audit, finances,
+                     # fichiers, agent, livrables, automatisations, approbations, webhooks,
+                     # console plateforme (cross-organisations, allowlist e-mail)
+  components/        # Landing + application (registre éditorial, cachet signé, marque
+                     # vectorielle, espace légal in-app : À propos / CGU / Confidentialité)
   lib/               # auth (scrypt/sessions), oauth-google (PKCE), provisioning,
-                     # pipeline (parse → classify → archive → index), quota, audit
-  store/             # état client Zustand — deux espaces : Documents et Console opérateur
-prisma/schema.prisma # 25 tables métier, chaque ligne porte organization_id
+                     # pipeline (parse → classify → archive → index), quota, audit,
+                     # connecteurs (document-ai, polar, resend, whatsapp, n8n, drive)
+  store/             # état client Zustand — espaces Documents / Console opérateur / Plateforme
+prisma/schema.prisma # tables métier indexées, chaque ligne porte organization_id
 db/                  # SQLite (jamais commitée)
 storage/             # archives réelles (jamais commitées)
 ```
